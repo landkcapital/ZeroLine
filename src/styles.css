@@ -1092,6 +1092,39 @@ main {
   opacity: 1;
 }
 
+/* ===== Delete Budget ===== */
+.delete-budget-section {
+  margin-top: 2rem;
+  text-align: center;
+}
+
+.delete-budget-btn {
+  opacity: 0.6;
+}
+
+.delete-budget-btn:hover {
+  opacity: 1;
+}
+
+.delete-budget-confirm {
+  padding: 1rem;
+  background: rgba(220, 38, 38, 0.04);
+  border: 1px solid rgba(220, 38, 38, 0.12);
+  border-radius: var(--radius-sm);
+}
+
+.delete-budget-confirm p {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin-bottom: 0.75rem;
+}
+
+.delete-budget-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
 /* ===== History Page ===== */
 .history-controls {
   display: flex;

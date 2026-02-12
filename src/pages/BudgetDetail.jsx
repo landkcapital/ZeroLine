@@ -11,6 +11,13 @@ export default function BudgetDetail() {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [confirmDeleteBudget, setConfirmDeleteBudget] = useState(false);
+
+  async function handleDeleteBudget() {
+    await supabase.from("transactions").delete().eq("budget_id", id);
+    await supabase.from("budgets").delete().eq("id", id);
+    navigate("/");
+  }
 
   async function handleDeleteTransaction(txId) {
     await supabase.from("transactions").delete().eq("id", txId);
@@ -194,6 +201,29 @@ export default function BudgetDetail() {
           )}
         </>
       )}
+
+      <div className="delete-budget-section">
+        {confirmDeleteBudget ? (
+          <div className="delete-budget-confirm">
+            <p>Delete <strong>{budget.name}</strong> and all its transactions?</p>
+            <div className="delete-budget-actions">
+              <button className="btn small danger" onClick={handleDeleteBudget}>
+                Yes, Delete
+              </button>
+              <button className="btn small secondary" onClick={() => setConfirmDeleteBudget(false)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            className="btn small danger delete-budget-btn"
+            onClick={() => setConfirmDeleteBudget(true)}
+          >
+            Delete Budget
+          </button>
+        )}
+      </div>
     </div>
   );
 }
