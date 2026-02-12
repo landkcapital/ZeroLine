@@ -122,15 +122,6 @@ body {
   color: var(--red);
 }
 
-.nav-btn.app-link {
-  text-decoration: none;
-  color: var(--blue1);
-}
-
-.nav-btn.app-link:hover {
-  background: rgba(47, 125, 255, 0.08);
-}
-
 /* ===== Pages ===== */
 .page {
   max-width: 900px;
@@ -429,6 +420,10 @@ main {
   gap: 1rem;
   margin-bottom: 1.25rem;
   text-align: center;
+}
+
+.summary-bar-4 {
+  grid-template-columns: repeat(4, 1fr);
 }
 
 .summary-card {
@@ -842,8 +837,8 @@ main {
   .summary-bar {
     grid-template-columns: 1fr 1fr;
     text-align: center;
-    gap: 0.75rem 0.5rem;
-    padding: 0 0.75rem;
+    gap: 1rem 1.25rem;
+    padding: 0 1rem;
   }
 
   .summary-bar-4 {
@@ -1261,11 +1256,6 @@ main {
   color: var(--text-dim);
 }
 
-/* ===== 4-Column Summary ===== */
-.summary-bar-4 {
-  grid-template-columns: repeat(4, 1fr);
-}
-
 /* ===== 4-Column Form Row ===== */
 .form-row-4 {
   grid-template-columns: 1fr 1fr 1fr 1fr;
@@ -1315,8 +1305,8 @@ main {
     background: #ffffff;
     border-top: 1px solid var(--border);
     box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.04);
-    padding: 0.4rem 0;
-    padding-bottom: env(safe-area-inset-bottom, 0.4rem);
+    padding: 0.5rem 0;
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.6rem);
     justify-content: space-around;
   }
 

@@ -23,7 +23,9 @@ export default function Home() {
   const [spentMap, setSpentMap] = useState({});
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [viewPeriod, setViewPeriod] = useState("fortnightly");
+  const [viewPeriod, setViewPeriod] = useState(
+    () => localStorage.getItem("viewPeriod") || "fortnightly"
+  );
 
   const fetchData = useCallback(async () => {
     const { data: budgetsData } = await supabase
@@ -85,7 +87,10 @@ export default function Home() {
   );
   const totalRemaining = totalBudget - totalSpent;
 
-  const handleViewPeriodChange = (e) => setViewPeriod(e.target.value);
+  const handleViewPeriodChange = (e) => {
+    setViewPeriod(e.target.value);
+    localStorage.setItem("viewPeriod", e.target.value);
+  };
 
   const hasAny = budgets.length > 0;
   const hasSpending = spendingBudgets.length > 0;

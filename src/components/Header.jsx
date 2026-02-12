@@ -37,17 +37,11 @@ export default function Header() {
           >
             History
           </button>
-          <a href="https://worthmeter.vercel.app" className="nav-btn app-link">
-            WorthMeter
-          </a>
           <button className="nav-btn sign-out" onClick={handleSignOut}>
             Sign Out
           </button>
         </nav>
         <div className="header-right-mobile">
-          <a href="https://worthmeter.vercel.app" className="nav-btn app-link">
-            WM
-          </a>
           <button className="nav-btn sign-out" onClick={handleSignOut}>
             Sign Out
           </button>
