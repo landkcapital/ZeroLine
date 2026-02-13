@@ -1,15 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
-import { getPeriodStart, getPeriodLabel } from "../lib/period";
+import { getPeriodStart, getPeriodLabel, PERIOD_DAYS, VIEW_PERIODS, VIEW_LABELS } from "../lib/period";
 import BudgetCard from "../components/BudgetCard";
 import AffordCheckCard from "../components/AffordCheckCard";
 import AddTransactionModal from "../components/AddTransactionModal";
 import Loading from "../components/Loading";
-
-const PERIOD_DAYS = { weekly: 7, fortnightly: 14, "4-weekly": 28, monthly: 30.44 };
-const VIEW_PERIODS = ["weekly", "fortnightly", "4-weekly"];
-const VIEW_LABELS = { weekly: "Weekly", fortnightly: "Fortnightly", "4-weekly": "4-Weekly" };
 
 function normalize(amount, fromPeriod, toPeriod) {
   const fromDays = PERIOD_DAYS[fromPeriod] || 14;
@@ -22,49 +18,72 @@ export default function Home() {
   const [budgets, setBudgets] = useState([]);
   const [spentMap, setSpentMap] = useState({});
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [viewPeriod, setViewPeriod] = useState(
     () => localStorage.getItem("viewPeriod") || "fortnightly"
   );
 
   const fetchData = useCallback(async () => {
-    const { data: budgetsData } = await supabase
-      .from("budgets")
-      .select("*")
-      .order("name");
+    try {
+      const { data: budgetsData, error: budgetsError } = await supabase
+        .from("budgets")
+        .select("*")
+        .order("name");
 
-    if (!budgetsData) {
+      if (budgetsError) throw budgetsError;
+      if (!budgetsData) {
+        setLoading(false);
+        return;
+      }
+
+      setBudgets(budgetsData);
+
+      const spendingBudgets = budgetsData.filter((b) => b.type !== "subscription");
+
+      if (spendingBudgets.length === 0) {
+        setSpentMap({});
+        setLoading(false);
+        return;
+      }
+
+      // Find the earliest period start across all spending budgets
+      let earliest = new Date();
+      for (const b of spendingBudgets) {
+        const ps = getPeriodStart(b.period, b.renew_anchor);
+        if (ps < earliest) earliest = ps;
+      }
+
+      // Single query for all transactions since the earliest period start
+      const { data: allTx, error: txError } = await supabase
+        .from("transactions")
+        .select("budget_id, amount, occurred_at")
+        .in("budget_id", spendingBudgets.map((b) => b.id))
+        .gte("occurred_at", earliest.toISOString());
+
+      if (txError) throw txError;
+
+      // Group by budget, only counting transactions within each budget's own period
+      const newSpentMap = {};
+      const periodStarts = {};
+      for (const b of spendingBudgets) {
+        periodStarts[b.id] = getPeriodStart(b.period, b.renew_anchor).getTime();
+        newSpentMap[b.id] = 0;
+      }
+      for (const t of allTx || []) {
+        const ps = periodStarts[t.budget_id];
+        if (ps != null && new Date(t.occurred_at).getTime() >= ps) {
+          newSpentMap[t.budget_id] += t.amount;
+        }
+      }
+
+      setSpentMap(newSpentMap);
+      setError(null);
+    } catch (err) {
+      setError(err.message || "Failed to load data");
+    } finally {
       setLoading(false);
-      return;
     }
-
-    setBudgets(budgetsData);
-
-    const newSpentMap = {};
-
-    // Only fetch transactions for spending budgets
-    const spendingBudgets = budgetsData.filter((b) => b.type !== "subscription");
-
-    await Promise.all(
-      spendingBudgets.map(async (budget) => {
-        const periodStart = getPeriodStart(budget.period, budget.renew_anchor);
-
-        const { data: transactions } = await supabase
-          .from("transactions")
-          .select("amount")
-          .eq("budget_id", budget.id)
-          .gte("occurred_at", periodStart.toISOString());
-
-        const total = (transactions || []).reduce(
-          (sum, t) => sum + t.amount,
-          0
-        );
-        newSpentMap[budget.id] = total;
-      })
-    );
-
-    setSpentMap(newSpentMap);
-    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -72,6 +91,19 @@ export default function Home() {
   }, [fetchData]);
 
   if (loading) return <Loading />;
+
+  if (error) {
+    return (
+      <div className="page home-page">
+        <div className="card" style={{ padding: "1.5rem", textAlign: "center" }}>
+          <p className="form-error">{error}</p>
+          <button className="btn primary" onClick={fetchData} style={{ marginTop: "1rem" }}>
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const subscriptions = budgets.filter((b) => b.type === "subscription");
   const spendingBudgets = budgets.filter((b) => b.type !== "subscription");

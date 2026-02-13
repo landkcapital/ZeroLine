@@ -1,7 +1,8 @@
+import { memo } from "react";
 import { useNavigate } from "react-router-dom";
 import { getPeriodLabel } from "../lib/period";
 
-export default function BudgetCard({ budget, spent }) {
+export default memo(function BudgetCard({ budget, spent }) {
   const navigate = useNavigate();
   const remaining = budget.goal_amount - spent;
   const progress = budget.goal_amount > 0 ? (spent / budget.goal_amount) * 100 : 0;
@@ -42,4 +43,4 @@ export default function BudgetCard({ budget, spent }) {
       </div>
     </div>
   );
-}
+})

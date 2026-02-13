@@ -813,7 +813,7 @@ main {
   }
 
   .page {
-    padding: 1.25rem 0.75rem 5.5rem;
+    padding: 1.25rem 0.75rem calc(env(safe-area-inset-bottom, 0px) + 6.5rem);
   }
 
   .card {
@@ -1327,20 +1327,22 @@ main {
     font-size: 0.8rem;
   }
 
-  /* Bottom tab bar */
+  /* Bottom tab bar — pinned to viewport bottom */
   .bottom-nav {
     display: flex;
     position: fixed;
     bottom: 0;
     left: 0;
     right: 0;
-    z-index: 100;
+    z-index: 9999;
     background: #ffffff;
     border-top: 1px solid var(--border);
     box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.04);
     padding: 0.5rem 0;
     padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 1rem);
     justify-content: space-around;
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
   }
 
   .bottom-nav-btn {
@@ -1373,7 +1375,12 @@ main {
   }
 }
 
-/* ===== Prevent horizontal overflow ===== */
+/* ===== Prevent horizontal overflow & mobile gestures ===== */
 html, body {
   overflow-x: hidden;
+  overscroll-behavior: none;
+}
+
+html {
+  touch-action: manipulation;
 }

@@ -13,30 +13,38 @@ export default function History() {
   const [budgets, setBudgets] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const { start, end } = getPeriodRange(period, refDate);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
+    try {
+      const { start: s, end: e } = getPeriodRange(period, refDate);
 
-    const { start: s, end: e } = getPeriodRange(period, refDate);
+      const { data: budgetsData, error: budgetsErr } = await supabase
+        .from("budgets")
+        .select("*")
+        .order("name");
 
-    const { data: budgetsData } = await supabase
-      .from("budgets")
-      .select("*")
-      .order("name");
+      if (budgetsErr) throw budgetsErr;
+      setBudgets(budgetsData || []);
 
-    setBudgets(budgetsData || []);
+      const { data: txData, error: txErr } = await supabase
+        .from("transactions")
+        .select("*")
+        .gte("occurred_at", s.toISOString())
+        .lte("occurred_at", e.toISOString())
+        .order("occurred_at", { ascending: false });
 
-    const { data: txData } = await supabase
-      .from("transactions")
-      .select("*")
-      .gte("occurred_at", s.toISOString())
-      .lte("occurred_at", e.toISOString())
-      .order("occurred_at", { ascending: false });
-
-    setTransactions(txData || []);
-    setLoading(false);
+      if (txErr) throw txErr;
+      setTransactions(txData || []);
+      setError(null);
+    } catch (err) {
+      setError(err.message || "Failed to load history");
+    } finally {
+      setLoading(false);
+    }
   }, [period, refDate]);
 
   useEffect(() => {
@@ -107,6 +115,13 @@ export default function History() {
 
       {loading ? (
         <Loading />
+      ) : error ? (
+        <div className="card" style={{ padding: "1.5rem", textAlign: "center" }}>
+          <p className="form-error">{error}</p>
+          <button className="btn primary" onClick={fetchData} style={{ marginTop: "1rem" }}>
+            Retry
+          </button>
+        </div>
       ) : (
         <>
           <div className="summary-bar summary-bar-4 card">

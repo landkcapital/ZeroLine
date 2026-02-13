@@ -12,50 +12,77 @@ export default function BudgetDetail() {
   const [loading, setLoading] = useState(true);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [confirmDeleteBudget, setConfirmDeleteBudget] = useState(false);
+  const [error, setError] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   async function handleDeleteBudget() {
-    await supabase.from("transactions").delete().eq("budget_id", id);
-    await supabase.from("budgets").delete().eq("id", id);
-    navigate("/");
+    setDeleting(true);
+    setError(null);
+    try {
+      const { error: txErr } = await supabase.from("transactions").delete().eq("budget_id", id);
+      if (txErr) throw txErr;
+      const { error: budgetErr } = await supabase.from("budgets").delete().eq("id", id);
+      if (budgetErr) throw budgetErr;
+      navigate("/");
+    } catch (err) {
+      setError(err.message || "Failed to delete budget");
+      setDeleting(false);
+    }
   }
 
   async function handleDeleteTransaction(txId) {
-    await supabase.from("transactions").delete().eq("id", txId);
-    setConfirmDelete(null);
-    fetchData();
+    setDeleting(true);
+    setError(null);
+    try {
+      const { error: txErr } = await supabase.from("transactions").delete().eq("id", txId);
+      if (txErr) throw txErr;
+      setConfirmDelete(null);
+      await fetchData();
+    } catch (err) {
+      setError(err.message || "Failed to delete transaction");
+    } finally {
+      setDeleting(false);
+    }
   }
 
   const fetchData = useCallback(async () => {
-    const { data: budgetRows, error: budgetError } = await supabase
-      .from("budgets")
-      .select("*")
-      .eq("id", id)
-      .limit(1);
-
-    const budgetData = budgetRows?.[0] ?? null;
-
-    if (budgetError || !budgetData) {
-      setLoading(false);
-      return;
-    }
-
-    setBudget(budgetData);
-
-    // Only fetch transactions for spending budgets
-    if (budgetData.type !== "subscription") {
-      const periodStart = getPeriodStart(budgetData.period, budgetData.renew_anchor);
-
-      const { data: txData } = await supabase
-        .from("transactions")
+    try {
+      const { data: budgetRows, error: budgetError } = await supabase
+        .from("budgets")
         .select("*")
-        .eq("budget_id", id)
-        .gte("occurred_at", periodStart.toISOString())
-        .order("occurred_at", { ascending: false });
+        .eq("id", id)
+        .limit(1);
 
-      setTransactions(txData || []);
+      if (budgetError) throw budgetError;
+      const budgetData = budgetRows?.[0] ?? null;
+
+      if (!budgetData) {
+        setLoading(false);
+        return;
+      }
+
+      setBudget(budgetData);
+
+      if (budgetData.type !== "subscription") {
+        const periodStart = getPeriodStart(budgetData.period, budgetData.renew_anchor);
+
+        const { data: txData, error: txError } = await supabase
+          .from("transactions")
+          .select("*")
+          .eq("budget_id", id)
+          .gte("occurred_at", periodStart.toISOString())
+          .order("occurred_at", { ascending: false });
+
+        if (txError) throw txError;
+        setTransactions(txData || []);
+      }
+
+      setError(null);
+    } catch (err) {
+      setError(err.message || "Failed to load budget");
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   }, [id]);
 
   useEffect(() => {
@@ -144,6 +171,8 @@ export default function BudgetDetail() {
         )}
       </div>
 
+      {error && <p className="form-error" style={{ margin: "0.75rem 0" }}>{error}</p>}
+
       {isSubscription ? (
         <div className="empty-state card">
           <p>This is a fixed subscription — auto-committed each period.</p>
@@ -176,12 +205,14 @@ export default function BudgetDetail() {
                         <button
                           className="btn small danger"
                           onClick={() => handleDeleteTransaction(t.id)}
+                          disabled={deleting}
                         >
-                          Confirm
+                          {deleting ? "Deleting..." : "Confirm"}
                         </button>
                         <button
                           className="btn small secondary"
                           onClick={() => setConfirmDelete(null)}
+                          disabled={deleting}
                         >
                           Cancel
                         </button>
@@ -190,6 +221,7 @@ export default function BudgetDetail() {
                       <button
                         className="btn small danger tx-delete-btn"
                         onClick={() => setConfirmDelete(t.id)}
+                        disabled={deleting}
                       >
                         Delete
                       </button>
@@ -207,10 +239,10 @@ export default function BudgetDetail() {
           <div className="delete-budget-confirm">
             <p>Delete <strong>{budget.name}</strong> and all its transactions?</p>
             <div className="delete-budget-actions">
-              <button className="btn small danger" onClick={handleDeleteBudget}>
-                Yes, Delete
+              <button className="btn small danger" onClick={handleDeleteBudget} disabled={deleting}>
+                {deleting ? "Deleting..." : "Yes, Delete"}
               </button>
-              <button className="btn small secondary" onClick={() => setConfirmDeleteBudget(false)}>
+              <button className="btn small secondary" onClick={() => setConfirmDeleteBudget(false)} disabled={deleting}>
                 Cancel
               </button>
             </div>

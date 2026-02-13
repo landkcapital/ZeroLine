@@ -1,3 +1,7 @@
+export const PERIOD_DAYS = { weekly: 7, fortnightly: 14, "4-weekly": 28, monthly: 30.44 };
+export const VIEW_PERIODS = ["weekly", "fortnightly", "4-weekly"];
+export const VIEW_LABELS = { weekly: "Weekly", fortnightly: "Fortnightly", "4-weekly": "4-Weekly" };
+
 /**
  * Parse a renew_anchor value (ISO date string like "2026-02-10") into a local Date.
  * Returns null if falsy.

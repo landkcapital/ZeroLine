@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { getSession, onAuthStateChange } from "./lib/auth";
 import Header from "./components/Header";
+import ErrorBoundary from "./components/ErrorBoundary";
 import Loading from "./components/Loading";
 import Login from "./pages/Login";
 import Home from "./pages/Home";
@@ -50,12 +51,13 @@ export default function App() {
 
     return () => {
       ignore = true;
-      subscription.unsubscribe();
+      subscription?.unsubscribe();
     };
   }, []);
 
   return (
     <BrowserRouter>
+      <ErrorBoundary>
       <Routes>
         <Route
           path="/login"
@@ -99,6 +101,7 @@ export default function App() {
         />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </ErrorBoundary>
     </BrowserRouter>
   );
 }
