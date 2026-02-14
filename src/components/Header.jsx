@@ -37,15 +37,16 @@ export default function Header() {
           >
             History
           </button>
+          <button
+            className={`nav-btn ${location.pathname === "/account" ? "active" : ""}`}
+            onClick={() => navigate("/account")}
+          >
+            Account
+          </button>
           <button className="nav-btn sign-out" onClick={handleSignOut}>
             Sign Out
           </button>
         </nav>
-        <div className="header-right-mobile">
-          <button className="nav-btn sign-out" onClick={handleSignOut}>
-            Sign Out
-          </button>
-        </div>
       </header>
 
       <nav className="bottom-nav">
@@ -69,6 +70,13 @@ export default function Header() {
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           <span>History</span>
+        </button>
+        <button
+          className={`bottom-nav-btn ${location.pathname === "/account" ? "active" : ""}`}
+          onClick={() => navigate("/account")}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <span>Account</span>
         </button>
       </nav>
     </>

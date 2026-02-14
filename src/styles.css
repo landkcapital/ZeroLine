@@ -1183,6 +1183,90 @@ main {
   margin-top: 1rem;
 }
 
+/* ===== Account Page ===== */
+.account-card {
+  text-align: center;
+  padding: 2rem 1.5rem;
+}
+
+.account-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--gradient);
+  color: #fff;
+  font-size: 1.5rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1rem;
+}
+
+.account-email {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 1.25rem;
+  word-break: break-all;
+}
+
+.account-details {
+  border-top: 1px solid var(--border);
+  padding-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.account-detail-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9rem;
+}
+
+.account-detail-label {
+  color: var(--text-muted);
+}
+
+.account-detail-value {
+  font-weight: 600;
+}
+
+.account-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  text-align: center;
+  padding: 1.25rem;
+  margin-top: 1rem;
+}
+
+.account-stat-value {
+  display: block;
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--blue1);
+}
+
+.account-stat-label {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-top: 0.2rem;
+}
+
+.account-sign-out {
+  margin-top: 2rem;
+  text-align: center;
+}
+
+.account-sign-out .btn {
+  width: 100%;
+  max-width: 300px;
+}
+
 /* ===== History Page ===== */
 .history-controls {
   display: flex;

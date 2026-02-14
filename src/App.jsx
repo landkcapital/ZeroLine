@@ -9,6 +9,7 @@ import Home from "./pages/Home";
 import Budgets from "./pages/Budgets";
 import BudgetDetail from "./pages/BudgetDetail";
 import History from "./pages/History";
+import Account from "./pages/Account";
 import "./styles.css";
 
 function ProtectedRoute({ session, ready, children }) {
@@ -96,6 +97,14 @@ export default function App() {
           element={
             <ProtectedRoute session={session} ready={ready}>
               <History />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/account"
+          element={
+            <ProtectedRoute session={session} ready={ready}>
+              <Account />
             </ProtectedRoute>
           }
         />

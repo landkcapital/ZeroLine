@@ -124,32 +124,34 @@ export default function History() {
         </div>
       ) : (
         <>
-          <div className="summary-bar summary-bar-4 card">
-            <div className="summary-item">
-              <span className="summary-label">Subscriptions</span>
-              <span className="summary-value">
-                ${totalSubscriptions.toFixed(2)}
-              </span>
-            </div>
-            <div className="summary-item">
-              <span className="summary-label">Spending Budget</span>
-              <span className="summary-value">
-                ${totalBudget.toFixed(2)}
-              </span>
-            </div>
-            <div className="summary-item">
-              <span className="summary-label">Spent</span>
-              <span className="summary-value">
-                ${totalSpent.toFixed(2)}
-              </span>
-            </div>
-            <div className="summary-item">
-              <span className="summary-label">Remaining</span>
-              <span
-                className={`summary-value ${totalRemaining >= 0 ? "positive" : "negative"}`}
-              >
-                ${totalRemaining.toFixed(2)}
-              </span>
+          <div className="card summary-card">
+            <div className="summary-bar summary-bar-4">
+              <div className="summary-item">
+                <span className="summary-label">Subscriptions</span>
+                <span className="summary-value">
+                  ${totalSubscriptions.toFixed(2)}
+                </span>
+              </div>
+              <div className="summary-item">
+                <span className="summary-label">Spending Budget</span>
+                <span className="summary-value">
+                  ${totalBudget.toFixed(2)}
+                </span>
+              </div>
+              <div className="summary-item">
+                <span className="summary-label">Spent</span>
+                <span className="summary-value">
+                  ${totalSpent.toFixed(2)}
+                </span>
+              </div>
+              <div className="summary-item">
+                <span className="summary-label">Remaining</span>
+                <span
+                  className={`summary-value ${totalRemaining >= 0 ? "positive" : "negative"}`}
+                >
+                  ${totalRemaining.toFixed(2)}
+                </span>
+              </div>
             </div>
           </div>
 
