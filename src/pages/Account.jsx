@@ -11,6 +11,12 @@ export default function Account() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [signingOut, setSigningOut] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState(null);
+  const [passwordSuccess, setPasswordSuccess] = useState(null);
 
   useEffect(() => {
     async function fetchAccount() {
@@ -36,6 +42,37 @@ export default function Account() {
     }
     fetchAccount();
   }, []);
+
+  async function handleChangePassword(e) {
+    e.preventDefault();
+    setPasswordError(null);
+    setPasswordSuccess(null);
+
+    if (newPassword.length < 6) {
+      setPasswordError("Password must be at least 6 characters.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError("Passwords do not match.");
+      return;
+    }
+
+    setChangingPassword(true);
+    try {
+      const { error: updateErr } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+      if (updateErr) throw updateErr;
+      setPasswordSuccess("Password updated successfully.");
+      setNewPassword("");
+      setConfirmPassword("");
+      setShowChangePassword(false);
+    } catch (err) {
+      setPasswordError(err.message || "Failed to update password");
+    } finally {
+      setChangingPassword(false);
+    }
+  }
 
   async function handleSignOut() {
     setSigningOut(true);
@@ -106,6 +143,67 @@ export default function Account() {
       )}
 
       {error && <p className="form-error" style={{ margin: "0.75rem 0" }}>{error}</p>}
+
+      <div className="card account-password-section">
+        {showChangePassword ? (
+          <form onSubmit={handleChangePassword}>
+            <h3>Change Password</h3>
+            <div className="form-group">
+              <label>New Password</label>
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="At least 6 characters"
+                required
+                minLength={6}
+              />
+            </div>
+            <div className="form-group">
+              <label>Confirm Password</label>
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Re-enter new password"
+                required
+                minLength={6}
+              />
+            </div>
+            {passwordError && <p className="form-error">{passwordError}</p>}
+            {passwordSuccess && <p className="form-success">{passwordSuccess}</p>}
+            <div className="account-password-actions">
+              <button type="submit" className="btn primary" disabled={changingPassword}>
+                {changingPassword ? "Updating..." : "Update Password"}
+              </button>
+              <button
+                type="button"
+                className="btn secondary"
+                onClick={() => {
+                  setShowChangePassword(false);
+                  setNewPassword("");
+                  setConfirmPassword("");
+                  setPasswordError(null);
+                }}
+                disabled={changingPassword}
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        ) : (
+          <>
+            {passwordSuccess && <p className="form-success" style={{ marginBottom: "0.75rem" }}>{passwordSuccess}</p>}
+            <button
+              className="btn secondary"
+              onClick={() => setShowChangePassword(true)}
+              style={{ width: "100%" }}
+            >
+              Change Password
+            </button>
+          </>
+        )}
+      </div>
 
       <div className="account-sign-out">
         <button

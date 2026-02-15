@@ -1257,6 +1257,22 @@ main {
   margin-top: 0.2rem;
 }
 
+.account-password-section {
+  margin-top: 1rem;
+}
+
+.account-password-section h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+
+.account-password-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
 .account-sign-out {
   margin-top: 2rem;
   text-align: center;

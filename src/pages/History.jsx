@@ -4,6 +4,7 @@ import {
   getPeriodRange,
   stepPeriod,
   formatPeriodRange,
+  getPeriodLabel,
 } from "../lib/period";
 import Loading from "../components/Loading";
 
@@ -156,34 +157,27 @@ export default function History() {
           </div>
 
           {subscriptions.length > 0 && (
-            <>
-              <h3 className="section-title">Subscriptions</h3>
-              <div className="history-budget-list">
-                {subscriptions.map((b) => (
-                  <div key={b.id} className="card history-budget-row">
-                    <div className="history-budget-name">
-                      <span>{b.name}</span>
-                      <span className="type-badge subscription">Fixed</span>
-                      <span className="period-badge">{b.period}</span>
-                    </div>
-                    <div className="budget-stats">
-                      <div className="stat">
-                        <span className="stat-label">Committed</span>
-                        <span className="stat-value">
-                          ${b.goal_amount.toFixed(2)}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="progress-bar">
-                      <div
-                        className="progress-fill"
-                        style={{ width: "100%" }}
-                      />
-                    </div>
-                  </div>
-                ))}
+            <div className="card subscription-section">
+              <div className="subscription-header">
+                <h3 className="subscription-section-title">Subscriptions</h3>
+                <span className="subscription-total">
+                  ${totalSubscriptions.toFixed(2)}
+                </span>
               </div>
-            </>
+              {subscriptions.map((sub) => (
+                <div key={sub.id} className="subscription-row">
+                  <div className="subscription-row-left">
+                    <span className="subscription-name">{sub.name}</span>
+                    <span className="period-badge">{getPeriodLabel(sub.period)}</span>
+                  </div>
+                  <div className="subscription-row-right">
+                    <span className="subscription-amount">
+                      ${sub.goal_amount.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
 
           <h3 className="section-title">Spending Breakdown</h3>
