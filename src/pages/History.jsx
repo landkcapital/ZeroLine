@@ -8,6 +8,11 @@ import {
 } from "../lib/period";
 import Loading from "../components/Loading";
 
+function stripRef(note) {
+  if (!note) return note;
+  return note.replace(/\s*\[ref:[^\]]+\]$/, "");
+}
+
 export default function History() {
   const [period, setPeriod] = useState("fortnightly");
   const [refDate, setRefDate] = useState(new Date());
@@ -249,7 +254,7 @@ export default function History() {
                       {budgetMap[t.budget_id]?.name || "Unknown"}
                     </span>
                     <span className="transaction-note">
-                      {t.note || "No note"}
+                      {stripRef(t.note) || "No note"}
                     </span>
                   </div>
                   <span className="transaction-date">

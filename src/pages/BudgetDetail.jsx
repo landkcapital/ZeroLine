@@ -4,6 +4,21 @@ import { supabase } from "../lib/supabase";
 import { getPeriodStart, getPeriodLabel, stepPeriod } from "../lib/period";
 import Loading from "../components/Loading";
 
+function makeRef() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
+
+function stripRef(note) {
+  if (!note) return note;
+  return note.replace(/\s*\[ref:[^\]]+\]$/, "");
+}
+
+function extractRef(note) {
+  if (!note) return null;
+  const m = note.match(/\[ref:([^\]]+)\]$/);
+  return m ? m[1] : null;
+}
+
 export default function BudgetDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -40,8 +55,27 @@ export default function BudgetDetail() {
     setDeleting(true);
     setError(null);
     try {
+      // Check if this transaction has a transfer ref (paired with another)
+      const tx = transactions.find((t) => t.id === txId);
+      const ref = tx ? extractRef(tx.note) : null;
+
       const { error: txErr } = await supabase.from("transactions").delete().eq("id", txId);
       if (txErr) throw txErr;
+
+      // Delete the paired transaction if there's a transfer ref
+      if (ref) {
+        const { data: paired } = await supabase
+          .from("transactions")
+          .select("id, note")
+          .like("note", `%[ref:${ref}]`);
+        if (paired && paired.length > 0) {
+          await supabase
+            .from("transactions")
+            .delete()
+            .in("id", paired.map((p) => p.id));
+        }
+      }
+
       setConfirmDelete(null);
       await fetchData();
     } catch (err) {
@@ -60,6 +94,8 @@ export default function BudgetDetail() {
     try {
       const now = new Date().toISOString();
 
+      const ref = makeRef();
+
       if (topUpMode === "next-period") {
         // Find the source budget (could be current budget or another)
         const source = topUpSourceId === id
@@ -77,13 +113,13 @@ export default function BudgetDetail() {
           supabase.from("transactions").insert({
             budget_id: id,
             amount: -amount,
-            note: `Borrowed from ${source.name} (next period)`,
+            note: `Borrowed from ${source.name} (next period) [ref:${ref}]`,
             occurred_at: now,
           }),
           supabase.from("transactions").insert({
             budget_id: topUpSourceId,
             amount: amount,
-            note: `Borrowed by ${budget.name} (from next period)`,
+            note: `Borrowed by ${budget.name} (from next period) [ref:${ref}]`,
             occurred_at: nextPeriodStart,
           }),
         ]);
@@ -98,13 +134,13 @@ export default function BudgetDetail() {
           supabase.from("transactions").insert({
             budget_id: id,
             amount: -amount,
-            note: `Top up from ${source.name}`,
+            note: `Top up from ${source.name} [ref:${ref}]`,
             occurred_at: now,
           }),
           supabase.from("transactions").insert({
             budget_id: topUpSourceId,
             amount: amount,
-            note: `Transfer to ${budget.name}`,
+            note: `Transfer to ${budget.name} [ref:${ref}]`,
             occurred_at: now,
           }),
         ]);
@@ -145,6 +181,7 @@ export default function BudgetDetail() {
 
       if (budgetData.type !== "subscription") {
         const periodStart = getPeriodStart(budgetData.period, budgetData.renew_anchor);
+        const nextPeriodStart = stepPeriod(budgetData.period, periodStart, "next");
 
         // Fetch this budget's transactions and all other spending budgets in parallel
         const [txResult, othersResult] = await Promise.all([
@@ -153,6 +190,7 @@ export default function BudgetDetail() {
             .select("*")
             .eq("budget_id", id)
             .gte("occurred_at", periodStart.toISOString())
+            .lt("occurred_at", nextPeriodStart.toISOString())
             .order("occurred_at", { ascending: false }),
           supabase
             .from("budgets")
@@ -173,9 +211,11 @@ export default function BudgetDetail() {
           const budgetIds = others.map((b) => b.id);
           let earliestStart = new Date();
           const periodStarts = {};
+          const periodEnds = {};
           for (const b of others) {
             const ps = getPeriodStart(b.period, b.renew_anchor);
             periodStarts[b.id] = ps.getTime();
+            periodEnds[b.id] = stepPeriod(b.period, ps, "next").getTime();
             if (ps < earliestStart) earliestStart = ps;
           }
 
@@ -189,7 +229,9 @@ export default function BudgetDetail() {
           for (const b of others) spentMap[b.id] = 0;
           for (const t of otherTx || []) {
             const ps = periodStarts[t.budget_id];
-            if (ps != null && new Date(t.occurred_at).getTime() >= ps) {
+            const pe = periodEnds[t.budget_id];
+            const txTime = new Date(t.occurred_at).getTime();
+            if (ps != null && txTime >= ps && txTime < pe) {
               spentMap[t.budget_id] += t.amount;
             }
           }
@@ -467,7 +509,7 @@ export default function BudgetDetail() {
                       ${t.amount.toFixed(2)}
                     </span>
                     <span className="transaction-note">
-                      {t.note || "No note"}
+                      {stripRef(t.note) || "No note"}
                     </span>
                   </div>
                   <div className="transaction-right">

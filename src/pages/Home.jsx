@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
-import { getPeriodStart, getPeriodLabel, PERIOD_DAYS, VIEW_PERIODS, VIEW_LABELS } from "../lib/period";
+import { getPeriodStart, getPeriodLabel, stepPeriod, PERIOD_DAYS, VIEW_PERIODS, VIEW_LABELS } from "../lib/period";
 import BudgetCard from "../components/BudgetCard";
 import AffordCheckCard from "../components/AffordCheckCard";
 import AddTransactionModal from "../components/AddTransactionModal";
@@ -66,13 +66,18 @@ export default function Home() {
       // Group by budget, only counting transactions within each budget's own period
       const newSpentMap = {};
       const periodStarts = {};
+      const periodEnds = {};
       for (const b of spendingBudgets) {
-        periodStarts[b.id] = getPeriodStart(b.period, b.renew_anchor).getTime();
+        const ps = getPeriodStart(b.period, b.renew_anchor);
+        periodStarts[b.id] = ps.getTime();
+        periodEnds[b.id] = stepPeriod(b.period, ps, "next").getTime();
         newSpentMap[b.id] = 0;
       }
       for (const t of allTx || []) {
         const ps = periodStarts[t.budget_id];
-        if (ps != null && new Date(t.occurred_at).getTime() >= ps) {
+        const pe = periodEnds[t.budget_id];
+        const txTime = new Date(t.occurred_at).getTime();
+        if (ps != null && txTime >= ps && txTime < pe) {
           newSpentMap[t.budget_id] += t.amount;
         }
       }
