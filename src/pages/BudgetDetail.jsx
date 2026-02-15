@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
-import { getPeriodStart, getPeriodLabel } from "../lib/period";
+import { getPeriodStart, getPeriodLabel, stepPeriod } from "../lib/period";
 import Loading from "../components/Loading";
 
 export default function BudgetDetail() {
@@ -17,6 +17,7 @@ export default function BudgetDetail() {
   const [showTopUp, setShowTopUp] = useState(false);
   const [topUpAmount, setTopUpAmount] = useState("");
   const [topUpSourceId, setTopUpSourceId] = useState("");
+  const [topUpMode, setTopUpMode] = useState("budget");
   const [otherBudgets, setOtherBudgets] = useState([]);
   const [transferring, setTransferring] = useState(false);
 
@@ -54,34 +55,68 @@ export default function BudgetDetail() {
     const amount = parseFloat(topUpAmount);
     if (!amount || amount <= 0 || !topUpSourceId) return;
 
-    const source = otherBudgets.find((b) => b.id === topUpSourceId);
-    if (!source) return;
-
     setTransferring(true);
     setError(null);
     try {
       const now = new Date().toISOString();
-      const [targetResult, sourceResult] = await Promise.all([
-        supabase.from("transactions").insert({
-          budget_id: id,
-          amount: -amount,
-          note: `Top up from ${source.name}`,
-          occurred_at: now,
-        }),
-        supabase.from("transactions").insert({
-          budget_id: topUpSourceId,
-          amount: amount,
-          note: `Transfer to ${budget.name}`,
-          occurred_at: now,
-        }),
-      ]);
 
-      if (targetResult.error) throw targetResult.error;
-      if (sourceResult.error) throw sourceResult.error;
+      if (topUpMode === "next-period") {
+        // Find the source budget (could be current budget or another)
+        const source = topUpSourceId === id
+          ? budget
+          : otherBudgets.find((b) => b.id === topUpSourceId);
+        if (!source) return;
+
+        const nextPeriodStart = stepPeriod(
+          source.period,
+          getPeriodStart(source.period, source.renew_anchor),
+          "next"
+        ).toISOString();
+
+        const [targetResult, sourceResult] = await Promise.all([
+          supabase.from("transactions").insert({
+            budget_id: id,
+            amount: -amount,
+            note: `Borrowed from ${source.name} (next period)`,
+            occurred_at: now,
+          }),
+          supabase.from("transactions").insert({
+            budget_id: topUpSourceId,
+            amount: amount,
+            note: `Borrowed by ${budget.name} (from next period)`,
+            occurred_at: nextPeriodStart,
+          }),
+        ]);
+
+        if (targetResult.error) throw targetResult.error;
+        if (sourceResult.error) throw sourceResult.error;
+      } else {
+        const source = otherBudgets.find((b) => b.id === topUpSourceId);
+        if (!source) return;
+
+        const [targetResult, sourceResult] = await Promise.all([
+          supabase.from("transactions").insert({
+            budget_id: id,
+            amount: -amount,
+            note: `Top up from ${source.name}`,
+            occurred_at: now,
+          }),
+          supabase.from("transactions").insert({
+            budget_id: topUpSourceId,
+            amount: amount,
+            note: `Transfer to ${budget.name}`,
+            occurred_at: now,
+          }),
+        ]);
+
+        if (targetResult.error) throw targetResult.error;
+        if (sourceResult.error) throw sourceResult.error;
+      }
 
       setShowTopUp(false);
       setTopUpAmount("");
       setTopUpSourceId("");
+      setTopUpMode("budget");
       await fetchData();
     } catch (err) {
       setError(err.message || "Failed to transfer");
@@ -266,11 +301,27 @@ export default function BudgetDetail() {
 
       {error && <p className="form-error" style={{ margin: "0.75rem 0" }}>{error}</p>}
 
-      {!isSubscription && otherBudgets.length > 0 && (
+      {!isSubscription && (
         <div className="topup-section">
           {showTopUp ? (
             <div className="card topup-form">
               <h3>Top Up {budget.name}</h3>
+              <div className="topup-mode-toggle">
+                <button
+                  className={`topup-mode-btn ${topUpMode === "budget" ? "active" : ""}`}
+                  onClick={() => { setTopUpMode("budget"); setTopUpSourceId(""); }}
+                  type="button"
+                >
+                  From budget
+                </button>
+                <button
+                  className={`topup-mode-btn ${topUpMode === "next-period" ? "active" : ""}`}
+                  onClick={() => { setTopUpMode("next-period"); setTopUpSourceId(""); }}
+                  type="button"
+                >
+                  From next period
+                </button>
+              </div>
               <div className="form-group">
                 <label>Amount</label>
                 <input
@@ -283,29 +334,62 @@ export default function BudgetDetail() {
                 />
               </div>
               <div className="form-group">
-                <label>Take from</label>
+                <label>{topUpMode === "next-period" ? "Borrow from" : "Take from"}</label>
                 <select
                   value={topUpSourceId}
                   onChange={(e) => setTopUpSourceId(e.target.value)}
                 >
                   <option value="">-- Select a budget --</option>
-                  {otherBudgets
-                    .filter((b) => b.remaining > 0)
-                    .map((b) => (
-                      <option key={b.id} value={b.id}>
-                        {b.name} (${b.remaining.toFixed(2)} remaining)
-                      </option>
-                    ))}
+                  {topUpMode === "next-period" ? (
+                    <>
+                      <option value={id}>{budget.name} (this budget)</option>
+                      {otherBudgets.map((b) => (
+                        <option key={b.id} value={b.id}>{b.name}</option>
+                      ))}
+                    </>
+                  ) : (
+                    otherBudgets
+                      .filter((b) => b.remaining > 0)
+                      .map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.name} (${b.remaining.toFixed(2)} remaining)
+                        </option>
+                      ))
+                  )}
                 </select>
               </div>
               {topUpSourceId && topUpAmount && parseFloat(topUpAmount) > 0 && (
                 <div className="topup-preview">
                   {(() => {
-                    const source = otherBudgets.find((b) => b.id === topUpSourceId);
                     const amt = parseFloat(topUpAmount) || 0;
+                    const targetAfter = remaining + amt;
+
+                    if (topUpMode === "next-period") {
+                      const source = topUpSourceId === id
+                        ? budget
+                        : otherBudgets.find((b) => b.id === topUpSourceId);
+                      if (!source) return null;
+                      return (
+                        <>
+                          <div className="topup-preview-row">
+                            <span>{budget.name} remaining now:</span>
+                            <span className={targetAfter >= 0 ? "positive" : "negative"}>
+                              ${targetAfter.toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="topup-preview-row">
+                            <span>{source.name} next period:</span>
+                            <span className="negative">
+                              -${amt.toFixed(2)}
+                            </span>
+                          </div>
+                        </>
+                      );
+                    }
+
+                    const source = otherBudgets.find((b) => b.id === topUpSourceId);
                     if (!source) return null;
                     const sourceAfter = source.remaining - amt;
-                    const targetAfter = remaining + amt;
                     return (
                       <>
                         <div className="topup-preview-row">
@@ -331,7 +415,7 @@ export default function BudgetDetail() {
                   onClick={handleTopUp}
                   disabled={transferring || !topUpSourceId || !topUpAmount || parseFloat(topUpAmount) <= 0}
                 >
-                  {transferring ? "Transferring..." : "Transfer"}
+                  {transferring ? "Transferring..." : topUpMode === "next-period" ? "Borrow" : "Transfer"}
                 </button>
                 <button
                   className="btn secondary"
@@ -339,6 +423,7 @@ export default function BudgetDetail() {
                     setShowTopUp(false);
                     setTopUpAmount("");
                     setTopUpSourceId("");
+                    setTopUpMode("budget");
                   }}
                   disabled={transferring}
                 >

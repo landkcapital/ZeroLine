@@ -428,7 +428,6 @@ main {
 
 .summary-card {
   margin-bottom: 1.25rem;
-  padding-top: 0;
 }
 
 .summary-card .summary-bar {
@@ -1151,6 +1150,34 @@ main {
   font-size: 1rem;
   font-weight: 600;
   margin-bottom: 1rem;
+}
+
+.topup-mode-toggle {
+  display: flex;
+  background: var(--bg);
+  border-radius: var(--radius-sm);
+  padding: 3px;
+  margin-bottom: 1rem;
+  border: 1px solid var(--border);
+}
+
+.topup-mode-btn {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  border: none;
+  background: transparent;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: calc(var(--radius-sm) - 3px);
+  transition: all 0.2s ease;
+}
+
+.topup-mode-btn.active {
+  background: #ffffff;
+  color: var(--blue1);
+  box-shadow: var(--shadow-sm);
 }
 
 .topup-preview {
