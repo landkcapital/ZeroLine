@@ -411,6 +411,7 @@ export default function BudgetDetail() {
                         ? budget
                         : otherBudgets.find((b) => b.id === topUpSourceId);
                       if (!source) return null;
+                      const nextPeriodRemaining = source.goal_amount - amt;
                       return (
                         <>
                           <div className="topup-preview-row">
@@ -421,8 +422,8 @@ export default function BudgetDetail() {
                           </div>
                           <div className="topup-preview-row">
                             <span>{source.name} next period:</span>
-                            <span className="negative">
-                              -${amt.toFixed(2)}
+                            <span className={nextPeriodRemaining >= 0 ? "positive" : "negative"}>
+                              ${nextPeriodRemaining.toFixed(2)} / ${source.goal_amount.toFixed(2)}
                             </span>
                           </div>
                         </>
