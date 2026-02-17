@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-export default function AffordCheckCard({ budgets, spentMap, debtMap = {} }) {
+export default function AffordCheckCard({ budgets, spentMap, debtMap = {}, mainGoal }) {
   const [selectedBudgetId, setSelectedBudgetId] = useState(
     budgets[0]?.id || ""
   );
@@ -129,6 +129,23 @@ export default function AffordCheckCard({ budgets, spentMap, debtMap = {} }) {
               ${totalRemaining.toFixed(2)}
             </span>
           </div>
+
+          {newRemaining < 0 && mainGoal && (
+            <div className="goal-reminder">
+              {mainGoal.image_url && (
+                <img src={mainGoal.image_url} alt={mainGoal.name} className="goal-reminder-image" />
+              )}
+              <div className="goal-reminder-text">
+                <div className="goal-reminder-title">Remember your goal!</div>
+                <div className="goal-reminder-message">
+                  Will this help you save for <strong>{mainGoal.name}</strong>?
+                </div>
+                <div className="goal-reminder-progress">
+                  ${mainGoal.saved_amount.toFixed(2)} / ${mainGoal.target_amount.toFixed(2)} saved
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

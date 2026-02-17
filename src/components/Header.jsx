@@ -32,6 +32,12 @@ export default function Header() {
             Budgets
           </button>
           <button
+            className={`nav-btn ${location.pathname === "/goals" ? "active" : ""}`}
+            onClick={() => navigate("/goals")}
+          >
+            Goals
+          </button>
+          <button
             className={`nav-btn ${location.pathname === "/history" ? "active" : ""}`}
             onClick={() => navigate("/history")}
           >
@@ -63,6 +69,13 @@ export default function Header() {
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="9" x2="22" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
           <span>Budgets</span>
+        </button>
+        <button
+          className={`bottom-nav-btn ${location.pathname === "/goals" ? "active" : ""}`}
+          onClick={() => navigate("/goals")}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg>
+          <span>Goals</span>
         </button>
         <button
           className={`bottom-nav-btn ${location.pathname === "/history" ? "active" : ""}`}

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { getPeriodStart, getPeriodLabel, stepPeriod, PERIOD_DAYS, VIEW_PERIODS, VIEW_LABELS } from "../lib/period";
 import { computeCarriedDebt } from "../lib/debt";
+import { collectLeftovers, processContributions } from "../lib/goals";
 import BudgetCard from "../components/BudgetCard";
 import AffordCheckCard from "../components/AffordCheckCard";
 import AddTransactionModal from "../components/AddTransactionModal";
@@ -19,6 +20,7 @@ export default function Home() {
   const [budgets, setBudgets] = useState([]);
   const [spentMap, setSpentMap] = useState({});
   const [debtMap, setDebtMap] = useState({});
+  const [mainGoal, setMainGoal] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showModal, setShowModal] = useState(false);
@@ -86,6 +88,26 @@ export default function Home() {
 
       setSpentMap(newSpentMap);
       setDebtMap(newDebtMap);
+
+      // Fetch goals and run leftover collection + auto-contributions
+      const { data: goalsData } = await supabase
+        .from("goals")
+        .select("*")
+        .order("sort_order");
+
+      if (goalsData && goalsData.length > 0) {
+        await collectLeftovers(supabase, budgetsData, allTx || [], goalsData);
+        await processContributions(supabase, goalsData);
+        // Re-fetch goals after processing to get updated saved_amount
+        const { data: updatedGoals } = await supabase
+          .from("goals")
+          .select("*")
+          .order("sort_order");
+        setMainGoal(updatedGoals?.[0] || null);
+      } else {
+        setMainGoal(null);
+      }
+
       setError(null);
     } catch (err) {
       setError(err.message || "Failed to load data");
@@ -190,7 +212,7 @@ export default function Home() {
       ) : (
         <>
           {hasSpending && (
-            <AffordCheckCard budgets={spendingBudgets} spentMap={spentMap} debtMap={debtMap} />
+            <AffordCheckCard budgets={spendingBudgets} spentMap={spentMap} debtMap={debtMap} mainGoal={mainGoal} />
           )}
 
           {hasSpending && (
@@ -254,6 +276,9 @@ export default function Home() {
       {showModal && (
         <AddTransactionModal
           budgets={spendingBudgets}
+          spentMap={spentMap}
+          debtMap={debtMap}
+          mainGoal={mainGoal}
           onClose={() => setShowModal(false)}
           onAdded={fetchData}
         />

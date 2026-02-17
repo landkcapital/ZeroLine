@@ -970,6 +970,16 @@ main {
   .history-period-selector {
     justify-content: center;
   }
+
+  /* Goals */
+  .goal-card-image {
+    width: 52px;
+    height: 52px;
+  }
+
+  .goal-card-actions {
+    gap: 0.4rem;
+  }
 }
 
 /* Extra small screens */
@@ -1304,6 +1314,243 @@ main {
 
 .breakdown-row + .breakdown-row {
   border-top: 1px solid var(--border);
+}
+
+/* ===== Goals Page ===== */
+.goals-page .page-title {
+  font-size: 1.35rem;
+  font-weight: 700;
+  margin-bottom: 1.25rem;
+}
+
+.goal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.goal-card {
+  transition: border-color 0.2s ease;
+  position: relative;
+}
+
+.goal-card.main {
+  border-color: rgba(47, 125, 255, 0.25);
+  box-shadow: 0 0 0 1px rgba(47, 125, 255, 0.08), var(--shadow-sm);
+}
+
+.goal-main-badge {
+  position: absolute;
+  top: -0.5rem;
+  right: 1rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  background: var(--gradient-btn);
+  color: #fff;
+  padding: 0.2rem 0.6rem;
+  border-radius: var(--radius-xs);
+}
+
+.goal-card-top {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.goal-card-image {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.goal-card-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.goal-card-name {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.goal-card-amounts {
+  font-size: 0.95rem;
+}
+
+.goal-saved {
+  font-weight: 800;
+  color: var(--blue1);
+}
+
+.goal-target {
+  color: var(--text-dim);
+  font-weight: 500;
+}
+
+.goal-progress-bar {
+  height: 6px;
+  margin-bottom: 0.75rem;
+}
+
+.goal-fill {
+  background: var(--gradient);
+}
+
+.goal-contribution-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg);
+  border-radius: var(--radius-xs);
+}
+
+.goal-leftovers-badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--blue1);
+  background: rgba(47, 125, 255, 0.06);
+  border: 1px solid rgba(47, 125, 255, 0.12);
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--radius-xs);
+  margin-bottom: 0.5rem;
+  text-align: center;
+}
+
+.goal-card-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.goal-reorder-btns {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.goal-reorder-btn {
+  min-width: 32px;
+  padding: 0.35rem 0.5rem !important;
+  font-size: 0.7rem !important;
+}
+
+.goal-reorder-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.goal-delete-confirm {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.goal-form {
+  margin-bottom: 1rem;
+}
+
+.goal-form h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+
+.goal-form-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.goal-form-actions .btn.primary {
+  width: auto;
+  flex: 1;
+}
+
+.goal-image-upload {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.goal-image-preview {
+  width: 80px;
+  height: 80px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+}
+
+.goal-image-upload input[type="file"] {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.checkbox-label {
+  display: flex !important;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem !important;
+  text-transform: none !important;
+  letter-spacing: normal !important;
+  cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: auto;
+  accent-color: var(--blue1);
+}
+
+/* ===== Goal Reminder ===== */
+.goal-reminder {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+  background: linear-gradient(135deg, rgba(47, 125, 255, 0.04), rgba(68, 194, 255, 0.06));
+  border: 1.5px solid rgba(47, 125, 255, 0.2);
+  border-radius: var(--radius-sm);
+}
+
+.goal-reminder-image {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-xs);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.goal-reminder-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.goal-reminder-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--blue1);
+  margin-bottom: 0.15rem;
+}
+
+.goal-reminder-message {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.goal-reminder-progress {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  margin-top: 0.25rem;
 }
 
 /* ===== Account Page ===== */

@@ -10,13 +10,21 @@ function toLocalDatetime(date) {
   return `${y}-${m}-${d}T${h}:${min}`;
 }
 
-export default function AddTransactionModal({ budgets, onClose, onAdded }) {
+export default function AddTransactionModal({ budgets, spentMap = {}, debtMap = {}, mainGoal, onClose, onAdded }) {
   const [amount, setAmount] = useState("");
   const [budgetId, setBudgetId] = useState(budgets[0]?.id || "");
   const [note, setNote] = useState("");
   const [occurredAt, setOccurredAt] = useState(() => toLocalDatetime(new Date()));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+
+  // Goal reminder logic
+  const parsedAmount = parseFloat(amount) || 0;
+  const selectedBudget = budgets.find((b) => b.id === budgetId);
+  const budgetRemaining = selectedBudget
+    ? selectedBudget.goal_amount - (spentMap[selectedBudget.id] || 0) + (debtMap[selectedBudget.id] || 0)
+    : 0;
+  const showGoalReminder = mainGoal && parsedAmount > 0 && parsedAmount > budgetRemaining;
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -100,6 +108,24 @@ export default function AddTransactionModal({ budgets, onClose, onAdded }) {
             />
           </div>
           {error && <p className="form-error">{error}</p>}
+
+          {showGoalReminder && (
+            <div className="goal-reminder">
+              {mainGoal.image_url && (
+                <img src={mainGoal.image_url} alt={mainGoal.name} className="goal-reminder-image" />
+              )}
+              <div className="goal-reminder-text">
+                <div className="goal-reminder-title">Remember your goal!</div>
+                <div className="goal-reminder-message">
+                  Will this help you save for <strong>{mainGoal.name}</strong>?
+                </div>
+                <div className="goal-reminder-progress">
+                  ${mainGoal.saved_amount.toFixed(2)} / ${mainGoal.target_amount.toFixed(2)} saved
+                </div>
+              </div>
+            </div>
+          )}
+
           <button type="submit" className="btn primary" disabled={saving}>
             {saving ? "Saving..." : "Add Transaction"}
           </button>
