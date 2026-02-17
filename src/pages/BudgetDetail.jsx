@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { getPeriodStart, getPeriodLabel, stepPeriod } from "../lib/period";
+import { computeCarriedDebt } from "../lib/debt";
 import Loading from "../components/Loading";
 
 function makeRef() {
@@ -10,7 +11,9 @@ function makeRef() {
 
 function stripRef(note) {
   if (!note) return note;
-  return note.replace(/\s*\[ref:[^\]]+\]$/, "");
+  return note
+    .replace(/\s*\[ref:[^\]]+\]$/, "")
+    .replace(/^\[RESET\]\s*/, "");
 }
 
 function extractRef(note) {
@@ -35,6 +38,11 @@ export default function BudgetDetail() {
   const [topUpMode, setTopUpMode] = useState("budget");
   const [otherBudgets, setOtherBudgets] = useState([]);
   const [transferring, setTransferring] = useState(false);
+  const [carriedDebt, setCarriedDebt] = useState(0);
+  const [nextPeriodTx, setNextPeriodTx] = useState([]);
+  const [nextPeriodAvailable, setNextPeriodAvailable] = useState(null);
+  const [showNextPeriodInfo, setShowNextPeriodInfo] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
 
   async function handleDeleteBudget() {
     setDeleting(true);
@@ -55,14 +63,12 @@ export default function BudgetDetail() {
     setDeleting(true);
     setError(null);
     try {
-      // Check if this transaction has a transfer ref (paired with another)
       const tx = transactions.find((t) => t.id === txId);
       const ref = tx ? extractRef(tx.note) : null;
 
       const { error: txErr } = await supabase.from("transactions").delete().eq("id", txId);
       if (txErr) throw txErr;
 
-      // Delete the paired transaction if there's a transfer ref
       if (ref) {
         const { data: paired } = await supabase
           .from("transactions")
@@ -85,6 +91,26 @@ export default function BudgetDetail() {
     }
   }
 
+  async function handleResetDebt() {
+    setDeleting(true);
+    setError(null);
+    try {
+      const { error: resetErr } = await supabase.from("transactions").insert({
+        budget_id: id,
+        amount: 0,
+        note: "[RESET] Debt cleared",
+        occurred_at: new Date().toISOString(),
+      });
+      if (resetErr) throw resetErr;
+      setConfirmReset(false);
+      await fetchData();
+    } catch (err) {
+      setError(err.message || "Failed to reset debt");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   async function handleTopUp() {
     const amount = parseFloat(topUpAmount);
     if (!amount || amount <= 0 || !topUpSourceId) return;
@@ -97,7 +123,6 @@ export default function BudgetDetail() {
       const ref = makeRef();
 
       if (topUpMode === "next-period") {
-        // Find the source budget (could be current budget or another)
         const source = topUpSourceId === id
           ? budget
           : otherBudgets.find((b) => b.id === topUpSourceId);
@@ -183,8 +208,7 @@ export default function BudgetDetail() {
         const periodStart = getPeriodStart(budgetData.period, budgetData.renew_anchor);
         const nextPeriodStart = stepPeriod(budgetData.period, periodStart, "next");
 
-        // Fetch this budget's transactions and all other spending budgets in parallel
-        const [txResult, othersResult] = await Promise.all([
+        const [txResult, allTxResult, othersResult] = await Promise.all([
           supabase
             .from("transactions")
             .select("*")
@@ -192,6 +216,10 @@ export default function BudgetDetail() {
             .gte("occurred_at", periodStart.toISOString())
             .lt("occurred_at", nextPeriodStart.toISOString())
             .order("occurred_at", { ascending: false }),
+          supabase
+            .from("transactions")
+            .select("amount, note, occurred_at")
+            .eq("budget_id", id),
           supabase
             .from("budgets")
             .select("*")
@@ -201,11 +229,12 @@ export default function BudgetDetail() {
         ]);
 
         if (txResult.error) throw txResult.error;
+        if (allTxResult.error) throw allTxResult.error;
         if (othersResult.error) throw othersResult.error;
 
         setTransactions(txResult.data || []);
+        setCarriedDebt(computeCarriedDebt(budgetData, allTxResult.data || []));
 
-        // Calculate remaining for each other budget
         const others = othersResult.data || [];
         if (others.length > 0) {
           const budgetIds = others.map((b) => b.id);
@@ -255,6 +284,38 @@ export default function BudgetDetail() {
     }
   }, [id]);
 
+  // Fetch next-period transactions when borrow source changes
+  useEffect(() => {
+    if (topUpMode !== "next-period" || !topUpSourceId || !budget) {
+      setNextPeriodTx([]);
+      setNextPeriodAvailable(null);
+      setShowNextPeriodInfo(false);
+      return;
+    }
+
+    const source = topUpSourceId === id
+      ? budget
+      : otherBudgets.find((b) => b.id === topUpSourceId);
+    if (!source) return;
+
+    const srcPeriodStart = getPeriodStart(source.period, source.renew_anchor);
+    const srcNextStart = stepPeriod(source.period, srcPeriodStart, "next");
+    const srcNextEnd = stepPeriod(source.period, srcNextStart, "next");
+
+    supabase
+      .from("transactions")
+      .select("amount, note, occurred_at")
+      .eq("budget_id", topUpSourceId)
+      .gte("occurred_at", srcNextStart.toISOString())
+      .lt("occurred_at", srcNextEnd.toISOString())
+      .then(({ data }) => {
+        const txs = data || [];
+        setNextPeriodTx(txs);
+        const alreadySpent = txs.reduce((sum, t) => sum + t.amount, 0);
+        setNextPeriodAvailable(source.goal_amount - alreadySpent);
+      });
+  }, [topUpMode, topUpSourceId, budget, otherBudgets, id]);
+
   useEffect(() => {
     fetchData();
   }, [fetchData]);
@@ -278,9 +339,13 @@ export default function BudgetDetail() {
   const spent = isSubscription
     ? budget.goal_amount
     : transactions.reduce((sum, t) => sum + t.amount, 0);
-  const remaining = budget.goal_amount - spent;
-  const progress =
-    budget.goal_amount > 0 ? (spent / budget.goal_amount) * 100 : 0;
+  const remaining = budget.goal_amount - spent + carriedDebt;
+  const effectiveGoal = Math.max(0, budget.goal_amount + carriedDebt);
+  const progress = effectiveGoal > 0 ? (spent / effectiveGoal) * 100 : (spent > 0 ? 100 : 0);
+
+  const visibleTx = transactions.filter(
+    (t) => !(t.note && t.note.includes("[RESET]"))
+  );
 
   return (
     <div className="page detail-page">
@@ -343,6 +408,48 @@ export default function BudgetDetail() {
 
       {error && <p className="form-error" style={{ margin: "0.75rem 0" }}>{error}</p>}
 
+      {!isSubscription && carriedDebt < 0 && (
+        <div className="card debt-banner">
+          <div className="debt-banner-content">
+            <span className="debt-banner-label">Carried debt from previous periods</span>
+            <span className="negative debt-banner-amount">
+              -${Math.abs(carriedDebt).toFixed(2)}
+            </span>
+          </div>
+          {confirmReset ? (
+            <div className="debt-reset-confirm">
+              <p>
+                Reset to full ${budget.goal_amount.toFixed(2)}? This clears all
+                carried debt.
+              </p>
+              <div className="debt-reset-actions">
+                <button
+                  className="btn small primary"
+                  onClick={handleResetDebt}
+                  disabled={deleting}
+                >
+                  {deleting ? "Resetting..." : "Confirm"}
+                </button>
+                <button
+                  className="btn small secondary"
+                  onClick={() => setConfirmReset(false)}
+                  disabled={deleting}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              className="btn small primary debt-reset-btn"
+              onClick={() => setConfirmReset(true)}
+            >
+              Reset to Full
+            </button>
+          )}
+        </div>
+      )}
+
       {!isSubscription && (
         <div className="topup-section">
           {showTopUp ? (
@@ -351,14 +458,21 @@ export default function BudgetDetail() {
               <div className="topup-mode-toggle">
                 <button
                   className={`topup-mode-btn ${topUpMode === "budget" ? "active" : ""}`}
-                  onClick={() => { setTopUpMode("budget"); setTopUpSourceId(""); }}
+                  onClick={() => {
+                    setTopUpMode("budget");
+                    setTopUpSourceId("");
+                  }}
                   type="button"
                 >
                   From budget
                 </button>
                 <button
                   className={`topup-mode-btn ${topUpMode === "next-period" ? "active" : ""}`}
-                  onClick={() => { setTopUpMode("next-period"); setTopUpSourceId(""); }}
+                  onClick={() => {
+                    setTopUpMode("next-period");
+                    setTopUpSourceId("");
+                    setTopUpAmount(budget.goal_amount.toFixed(2));
+                  }}
                   type="button"
                 >
                   From next period
@@ -411,7 +525,10 @@ export default function BudgetDetail() {
                         ? budget
                         : otherBudgets.find((b) => b.id === topUpSourceId);
                       if (!source) return null;
-                      const nextPeriodRemaining = source.goal_amount - amt;
+                      const available = nextPeriodAvailable != null
+                        ? nextPeriodAvailable
+                        : source.goal_amount;
+                      const afterBorrow = available - amt;
                       return (
                         <>
                           <div className="topup-preview-row">
@@ -421,11 +538,35 @@ export default function BudgetDetail() {
                             </span>
                           </div>
                           <div className="topup-preview-row">
-                            <span>{source.name} next period:</span>
-                            <span className={nextPeriodRemaining >= 0 ? "positive" : "negative"}>
-                              ${nextPeriodRemaining.toFixed(2)} / ${source.goal_amount.toFixed(2)}
+                            <span className="next-period-label">
+                              {source.name} next period:
+                              {nextPeriodTx.length > 0 && (
+                                <button
+                                  className="next-period-info-btn"
+                                  onClick={() => setShowNextPeriodInfo(!showNextPeriodInfo)}
+                                  type="button"
+                                >
+                                  ?
+                                </button>
+                              )}
+                            </span>
+                            <span className={afterBorrow >= 0 ? "positive" : "negative"}>
+                              ${afterBorrow.toFixed(2)} / ${available.toFixed(2)}
                             </span>
                           </div>
+                          {showNextPeriodInfo && nextPeriodTx.length > 0 && (
+                            <div className="next-period-breakdown">
+                              <div className="breakdown-header">
+                                Already borrowed from next period:
+                              </div>
+                              {nextPeriodTx.map((t, i) => (
+                                <div key={i} className="breakdown-row">
+                                  <span>{stripRef(t.note)}</span>
+                                  <span>${t.amount.toFixed(2)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </>
                       );
                     }
@@ -479,9 +620,7 @@ export default function BudgetDetail() {
               className="btn topup-btn"
               onClick={() => {
                 setShowTopUp(true);
-                if (remaining < 0) {
-                  setTopUpAmount(Math.abs(remaining).toFixed(2));
-                }
+                setTopUpAmount(budget.goal_amount.toFixed(2));
               }}
             >
               Top Up Budget
@@ -497,13 +636,13 @@ export default function BudgetDetail() {
       ) : (
         <>
           <h3 className="section-title">Transactions</h3>
-          {transactions.length === 0 ? (
+          {visibleTx.length === 0 ? (
             <div className="empty-state card">
               <p>No transactions this period.</p>
             </div>
           ) : (
             <div className="transaction-list">
-              {transactions.map((t) => (
+              {visibleTx.map((t) => (
                 <div key={t.id} className="card transaction-item">
                   <div className="transaction-info">
                     <span className="transaction-amount">

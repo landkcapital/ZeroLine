@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { getPeriodStart, getPeriodLabel, stepPeriod, PERIOD_DAYS, VIEW_PERIODS, VIEW_LABELS } from "../lib/period";
+import { computeCarriedDebt } from "../lib/debt";
 import BudgetCard from "../components/BudgetCard";
 import AffordCheckCard from "../components/AffordCheckCard";
 import AddTransactionModal from "../components/AddTransactionModal";
@@ -17,6 +18,7 @@ export default function Home() {
   const navigate = useNavigate();
   const [budgets, setBudgets] = useState([]);
   const [spentMap, setSpentMap] = useState({});
+  const [debtMap, setDebtMap] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showModal, setShowModal] = useState(false);
@@ -43,23 +45,16 @@ export default function Home() {
 
       if (spendingBudgets.length === 0) {
         setSpentMap({});
+        setDebtMap({});
         setLoading(false);
         return;
       }
 
-      // Find the earliest period start across all spending budgets
-      let earliest = new Date();
-      for (const b of spendingBudgets) {
-        const ps = getPeriodStart(b.period, b.renew_anchor);
-        if (ps < earliest) earliest = ps;
-      }
-
-      // Single query for all transactions since the earliest period start
+      // Fetch ALL transactions for spending budgets (needed for debt computation)
       const { data: allTx, error: txError } = await supabase
         .from("transactions")
-        .select("budget_id, amount, occurred_at")
-        .in("budget_id", spendingBudgets.map((b) => b.id))
-        .gte("occurred_at", earliest.toISOString());
+        .select("budget_id, amount, occurred_at, note")
+        .in("budget_id", spendingBudgets.map((b) => b.id));
 
       if (txError) throw txError;
 
@@ -82,7 +77,15 @@ export default function Home() {
         }
       }
 
+      // Compute carried debt per budget
+      const newDebtMap = {};
+      for (const b of spendingBudgets) {
+        const budgetTx = (allTx || []).filter((t) => t.budget_id === b.id);
+        newDebtMap[b.id] = computeCarriedDebt(b, budgetTx);
+      }
+
       setSpentMap(newSpentMap);
+      setDebtMap(newDebtMap);
       setError(null);
     } catch (err) {
       setError(err.message || "Failed to load data");
@@ -122,7 +125,10 @@ export default function Home() {
   const totalSpent = spendingBudgets.reduce(
     (s, b) => s + (spentMap[b.id] || 0), 0
   );
-  const totalRemaining = totalBudget - totalSpent;
+  const totalDebt = spendingBudgets.reduce(
+    (s, b) => s + (debtMap[b.id] || 0), 0
+  );
+  const totalRemaining = totalBudget - totalSpent + totalDebt;
 
   const handleViewPeriodChange = (e) => {
     setViewPeriod(e.target.value);
@@ -184,7 +190,7 @@ export default function Home() {
       ) : (
         <>
           {hasSpending && (
-            <AffordCheckCard budgets={spendingBudgets} spentMap={spentMap} />
+            <AffordCheckCard budgets={spendingBudgets} spentMap={spentMap} debtMap={debtMap} />
           )}
 
           {hasSpending && (
@@ -194,6 +200,7 @@ export default function Home() {
                   key={budget.id}
                   budget={budget}
                   spent={spentMap[budget.id] || 0}
+                  carriedDebt={debtMap[budget.id] || 0}
                 />
               ))}
             </div>
