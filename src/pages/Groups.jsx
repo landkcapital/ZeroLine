@@ -48,15 +48,75 @@ export default function Groups() {
 
       if (groupsErr) throw groupsErr;
 
-      const groupsWithCounts = await Promise.all(
-        (groupsData || []).map(async (g) => {
-          const { count } = await supabase
-            .from("group_members")
-            .select("id", { count: "exact", head: true })
-            .eq("group_id", g.id);
-          return { ...g, member_count: count || 0 };
-        })
-      );
+      // Fetch all members, expenses, and shares across all groups for balance calc
+      const { data: allMembers } = await supabase
+        .from("group_members")
+        .select("id, group_id, user_id")
+        .in("group_id", groupIds);
+
+      const { data: allExpenses } = await supabase
+        .from("group_expenses")
+        .select("id, group_id, paid_by_member_id, amount")
+        .in("group_id", groupIds);
+
+      const expenseIds = (allExpenses || []).map((e) => e.id);
+      let allShares = [];
+      if (expenseIds.length > 0) {
+        const { data: sharesData } = await supabase
+          .from("group_expense_shares")
+          .select("expense_id, member_id, share_amount, settled")
+          .in("expense_id", expenseIds);
+        allShares = sharesData || [];
+      }
+
+      // Build per-group balance for current user
+      const groupsWithCounts = (groupsData || []).map((g) => {
+        const gMembers = (allMembers || []).filter((m) => m.group_id === g.id);
+        const gExpenses = (allExpenses || []).filter((e) => e.group_id === g.id);
+        const myMember = gMembers.find((m) => m.user_id === user.id);
+        const memberCount = gMembers.length;
+
+        let myBalance = 0;
+
+        if (myMember) {
+          // Share-based balance (new expenses)
+          const gExpenseIds = new Set(gExpenses.map((e) => e.id));
+          const gShares = allShares.filter((s) => gExpenseIds.has(s.expense_id));
+
+          for (const e of gExpenses) {
+            const expShares = gShares.filter((s) => s.expense_id === e.id);
+            if (expShares.length > 0) {
+              // New-style expense with shares
+              for (const sh of expShares) {
+                if (!sh.settled && sh.member_id !== e.paid_by_member_id) {
+                  if (sh.member_id === myMember.id) {
+                    myBalance -= Number(sh.share_amount); // I owe
+                  }
+                  if (e.paid_by_member_id === myMember.id) {
+                    myBalance += Number(sh.share_amount); // Owed to me
+                  }
+                }
+              }
+            } else {
+              // Legacy expense — equal split
+              if (memberCount > 0) {
+                const fairShare = e.amount / memberCount;
+                if (e.paid_by_member_id === myMember.id) {
+                  myBalance += e.amount - fairShare; // I paid, others owe me
+                } else {
+                  myBalance -= fairShare; // Someone else paid, I owe
+                }
+              }
+            }
+          }
+        }
+
+        return {
+          ...g,
+          member_count: gMembers.length,
+          myBalance: Math.round(myBalance * 100) / 100,
+        };
+      });
 
       setGroups(groupsWithCounts);
       setError(null);
@@ -291,10 +351,23 @@ export default function Groups() {
             >
               <div className="group-list-info">
                 <h3>{group.name}</h3>
-                <span className="group-member-count">
-                  {group.member_count}{" "}
-                  {group.member_count === 1 ? "member" : "members"}
-                </span>
+                <div className="group-list-meta">
+                  <span className="group-member-count">
+                    {group.member_count}{" "}
+                    {group.member_count === 1 ? "member" : "members"}
+                  </span>
+                  {group.myBalance > 0.005 ? (
+                    <span className="group-balance owed-to-you">
+                      Owed ${group.myBalance.toFixed(2)}
+                    </span>
+                  ) : group.myBalance < -0.005 ? (
+                    <span className="group-balance you-owe">
+                      You Owe ${Math.abs(group.myBalance).toFixed(2)}
+                    </span>
+                  ) : (
+                    <span className="group-balance balanced">Balanced</span>
+                  )}
+                </div>
               </div>
               <span className="group-arrow">&rsaquo;</span>
             </div>

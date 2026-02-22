@@ -1597,9 +1597,32 @@ main {
   margin-bottom: 0.2rem;
 }
 
+.group-list-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
 .group-member-count {
   font-size: 0.8rem;
   color: var(--text-muted);
+}
+
+.group-balance {
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.group-balance.owed-to-you {
+  color: #e6a817;
+}
+
+.group-balance.you-owe {
+  color: var(--red);
+}
+
+.group-balance.balanced {
+  color: var(--green);
 }
 
 .group-arrow {
