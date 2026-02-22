@@ -20,6 +20,7 @@ export default function Home() {
   const [budgets, setBudgets] = useState([]);
   const [spentMap, setSpentMap] = useState({});
   const [debtMap, setDebtMap] = useState({});
+  const [allocatedMap, setAllocatedMap] = useState({});
   const [mainGoal, setMainGoal] = useState(null);
   const [groupMap, setGroupMap] = useState({});
   const [loading, setLoading] = useState(true);
@@ -106,6 +107,18 @@ export default function Home() {
       setSpentMap(newSpentMap);
       setDebtMap(newDebtMap);
 
+      // Fetch allocations for spending budgets
+      const { data: allocData } = await supabase
+        .from("allocations")
+        .select("budget_id, amount")
+        .in("budget_id", spendingBudgets.map((b) => b.id));
+
+      const newAllocatedMap = {};
+      for (const a of allocData || []) {
+        newAllocatedMap[a.budget_id] = (newAllocatedMap[a.budget_id] || 0) + a.amount;
+      }
+      setAllocatedMap(newAllocatedMap);
+
       // Fetch goals and run leftover collection + auto-contributions
       const { data: goalsData } = await supabase
         .from("goals")
@@ -181,7 +194,10 @@ export default function Home() {
   const totalDebt = spendingBudgets.reduce(
     (s, b) => s + (debtMap[b.id] || 0), 0
   );
-  const totalRemaining = totalBudget - totalSpent + totalDebt;
+  const totalAllocated = spendingBudgets.reduce(
+    (s, b) => s + (allocatedMap[b.id] || 0), 0
+  );
+  const totalRemaining = totalBudget - totalSpent - totalAllocated + totalDebt;
 
   const handleViewPeriodChange = (e) => {
     setViewPeriod(e.target.value);
@@ -243,7 +259,7 @@ export default function Home() {
       ) : (
         <>
           {hasSpending && (
-            <AffordCheckCard budgets={spendingBudgets} spentMap={spentMap} debtMap={debtMap} mainGoal={mainGoal} groupMap={groupMap} />
+            <AffordCheckCard budgets={spendingBudgets} spentMap={spentMap} debtMap={debtMap} allocatedMap={allocatedMap} mainGoal={mainGoal} groupMap={groupMap} />
           )}
 
           {personalSpending.length > 0 && (
@@ -254,6 +270,7 @@ export default function Home() {
                   budget={budget}
                   spent={spentMap[budget.id] || 0}
                   carriedDebt={debtMap[budget.id] || 0}
+                  allocated={allocatedMap[budget.id] || 0}
                 />
               ))}
             </div>
@@ -273,6 +290,7 @@ export default function Home() {
                         budget={budget}
                         spent={spentMap[budget.id] || 0}
                         carriedDebt={debtMap[budget.id] || 0}
+                        allocated={allocatedMap[budget.id] || 0}
                       />
                     ))}
                   </div>
@@ -353,6 +371,7 @@ export default function Home() {
           budgets={spendingBudgets}
           spentMap={spentMap}
           debtMap={debtMap}
+          allocatedMap={allocatedMap}
           mainGoal={mainGoal}
           groupMap={groupMap}
           onClose={() => setShowModal(false)}

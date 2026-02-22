@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-export default function AffordCheckCard({ budgets, spentMap, debtMap = {}, mainGoal, groupMap = {} }) {
+export default function AffordCheckCard({ budgets, spentMap, debtMap = {}, allocatedMap = {}, mainGoal, groupMap = {} }) {
   const [selectedBudgetId, setSelectedBudgetId] = useState(
     budgets[0]?.id || ""
   );
@@ -12,8 +12,9 @@ export default function AffordCheckCard({ budgets, spentMap, debtMap = {}, mainG
 
   const currentSpent = selectedBudget ? (spentMap[selectedBudget.id] || 0) : 0;
   const currentDebt = selectedBudget ? (debtMap[selectedBudget.id] || 0) : 0;
+  const currentAllocated = selectedBudget ? (allocatedMap[selectedBudget.id] || 0) : 0;
   const currentRemaining = selectedBudget
-    ? selectedBudget.goal_amount - currentSpent + currentDebt
+    ? selectedBudget.goal_amount - currentSpent - currentAllocated + currentDebt
     : 0;
   const newRemaining = currentRemaining - amount;
 
@@ -22,13 +23,13 @@ export default function AffordCheckCard({ budgets, spentMap, debtMap = {}, mainG
   // Other budgets that could cover the overspend
   const coverOptions = budgets.filter((b) => {
     if (b.id === selectedBudgetId) return false;
-    const rem = b.goal_amount - (spentMap[b.id] || 0) + (debtMap[b.id] || 0);
+    const rem = b.goal_amount - (spentMap[b.id] || 0) - (allocatedMap[b.id] || 0) + (debtMap[b.id] || 0);
     return rem > 0;
   });
 
   const coverBudget = coverOptions.find((b) => b.id === coverBudgetId);
   const coverRemaining = coverBudget
-    ? coverBudget.goal_amount - (spentMap[coverBudget.id] || 0) + (debtMap[coverBudget.id] || 0)
+    ? coverBudget.goal_amount - (spentMap[coverBudget.id] || 0) - (allocatedMap[coverBudget.id] || 0) + (debtMap[coverBudget.id] || 0)
     : 0;
   const coverAfter = coverRemaining - overspend;
 
@@ -36,7 +37,8 @@ export default function AffordCheckCard({ budgets, spentMap, debtMap = {}, mainG
   const totalRemaining = budgets.reduce((acc, b) => {
     const spent = spentMap[b.id] || 0;
     const debt = debtMap[b.id] || 0;
-    const rem = b.goal_amount - spent + debt;
+    const alloc = allocatedMap[b.id] || 0;
+    const rem = b.goal_amount - spent - alloc + debt;
     if (b.id === selectedBudgetId) {
       // If covering, this budget goes to $0 (the overspend is moved)
       return acc + (overspend > 0 && coverBudgetId ? 0 : rem - amount);
@@ -130,7 +132,7 @@ export default function AffordCheckCard({ budgets, spentMap, debtMap = {}, mainG
               >
                 <option value="">-- Select a budget --</option>
                 {coverOptions.map((b) => {
-                  const rem = b.goal_amount - (spentMap[b.id] || 0) + (debtMap[b.id] || 0);
+                  const rem = b.goal_amount - (spentMap[b.id] || 0) - (allocatedMap[b.id] || 0) + (debtMap[b.id] || 0);
                   return (
                     <option key={b.id} value={b.id}>
                       {b.name} (${rem.toFixed(2)} remaining)

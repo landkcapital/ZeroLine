@@ -18,6 +18,7 @@ export default function History() {
   const [refDate, setRefDate] = useState(new Date());
   const [budgets, setBudgets] = useState([]);
   const [transactions, setTransactions] = useState([]);
+  const [allocatedByBudget, setAllocatedByBudget] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -45,6 +46,23 @@ export default function History() {
 
       if (txErr) throw txErr;
       setTransactions(txData || []);
+
+      // Fetch current allocations
+      const spendingIds = (budgetsData || []).filter((b) => b.type !== "subscription").map((b) => b.id);
+      if (spendingIds.length > 0) {
+        const { data: allocData } = await supabase
+          .from("allocations")
+          .select("budget_id, amount")
+          .in("budget_id", spendingIds);
+        const allocMap = {};
+        for (const a of allocData || []) {
+          allocMap[a.budget_id] = (allocMap[a.budget_id] || 0) + a.amount;
+        }
+        setAllocatedByBudget(allocMap);
+      } else {
+        setAllocatedByBudget({});
+      }
+
       setError(null);
     } catch (err) {
       setError(err.message || "Failed to load history");
@@ -86,7 +104,8 @@ export default function History() {
   const totalSubscriptions = subscriptions.reduce((s, b) => s + b.goal_amount, 0);
   const totalBudget = spendingBudgets.reduce((s, b) => s + b.goal_amount, 0);
   const totalSpent = transactions.reduce((s, t) => s + t.amount, 0);
-  const totalRemaining = totalBudget - totalSpent;
+  const totalAllocated = spendingBudgets.reduce((s, b) => s + (allocatedByBudget[b.id] || 0), 0);
+  const totalRemaining = totalBudget - totalSpent - totalAllocated;
 
   return (
     <div className="page history-page">
@@ -170,9 +189,10 @@ export default function History() {
             ) : (
               spendingBudgets.map((b) => {
                 const bSpent = spentByBudget[b.id] || 0;
-                const bRemaining = b.goal_amount - bSpent;
+                const bAllocated = allocatedByBudget[b.id] || 0;
+                const bRemaining = b.goal_amount - bSpent - bAllocated;
                 const bProgress =
-                  b.goal_amount > 0 ? (bSpent / b.goal_amount) * 100 : 0;
+                  b.goal_amount > 0 ? ((bSpent + bAllocated) / b.goal_amount) * 100 : 0;
                 return (
                   <div key={b.id} className="card history-budget-row">
                     <div className="history-budget-name">
@@ -192,6 +212,14 @@ export default function History() {
                           ${bSpent.toFixed(2)}
                         </span>
                       </div>
+                      {bAllocated > 0 && (
+                        <div className="stat">
+                          <span className="stat-label">Allocated</span>
+                          <span className="stat-value allocated">
+                            ${bAllocated.toFixed(2)}
+                          </span>
+                        </div>
+                      )}
                       <div className="stat">
                         <span className="stat-label">Remaining</span>
                         <span

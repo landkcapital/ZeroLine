@@ -43,6 +43,9 @@ export default function BudgetDetail() {
   const [nextPeriodAvailable, setNextPeriodAvailable] = useState(null);
   const [showNextPeriodInfo, setShowNextPeriodInfo] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [allocations, setAllocations] = useState([]);
+  const [confirmDeleteAlloc, setConfirmDeleteAlloc] = useState(null);
+  const [deletingAlloc, setDeletingAlloc] = useState(false);
 
   async function handleDeleteBudget() {
     setDeleting(true);
@@ -108,6 +111,20 @@ export default function BudgetDetail() {
       setError(err.message || "Failed to reset debt");
     } finally {
       setDeleting(false);
+    }
+  }
+
+  async function handleDeleteAllocation(allocId) {
+    setDeletingAlloc(true);
+    try {
+      const { error: delErr } = await supabase.from("allocations").delete().eq("id", allocId);
+      if (delErr) throw delErr;
+      setConfirmDeleteAlloc(null);
+      await fetchData();
+    } catch (err) {
+      setError(err.message || "Failed to delete allocation");
+    } finally {
+      setDeletingAlloc(false);
     }
   }
 
@@ -235,6 +252,14 @@ export default function BudgetDetail() {
         setTransactions(txResult.data || []);
         setCarriedDebt(computeCarriedDebt(budgetData, allTxResult.data || []));
 
+        // Fetch allocations for this budget
+        const { data: allocData } = await supabase
+          .from("allocations")
+          .select("*")
+          .eq("budget_id", id)
+          .order("created_at", { ascending: false });
+        setAllocations(allocData || []);
+
         const others = othersResult.data || [];
         if (others.length > 0) {
           const budgetIds = others.map((b) => b.id);
@@ -339,9 +364,10 @@ export default function BudgetDetail() {
   const spent = isSubscription
     ? budget.goal_amount
     : transactions.reduce((sum, t) => sum + t.amount, 0);
-  const remaining = budget.goal_amount - spent + carriedDebt;
+  const totalAllocated = allocations.reduce((sum, a) => sum + a.amount, 0);
+  const remaining = budget.goal_amount - spent - totalAllocated + carriedDebt;
   const effectiveGoal = Math.max(0, budget.goal_amount + carriedDebt);
-  const progress = effectiveGoal > 0 ? (spent / effectiveGoal) * 100 : (spent > 0 ? 100 : 0);
+  const progress = effectiveGoal > 0 ? ((spent + totalAllocated) / effectiveGoal) * 100 : (spent > 0 ? 100 : 0);
 
   const visibleTx = transactions.filter(
     (t) => !(t.note && t.note.includes("[RESET]"))
@@ -390,6 +416,12 @@ export default function BudgetDetail() {
                 <span className="summary-label">Spent</span>
                 <span className="summary-value">${spent.toFixed(2)}</span>
               </div>
+              {totalAllocated > 0 && (
+                <div className="summary-item">
+                  <span className="summary-label">Allocated</span>
+                  <span className="summary-value allocated">${totalAllocated.toFixed(2)}</span>
+                </div>
+              )}
               <div className="summary-item">
                 <span className="summary-label">Remaining</span>
                 <span
@@ -638,6 +670,57 @@ export default function BudgetDetail() {
         </div>
       ) : (
         <>
+          {allocations.length > 0 && (
+            <>
+              <h3 className="section-title">Pending Allocations</h3>
+              <div className="allocation-detail-list">
+                {allocations.map((alloc) => (
+                  <div key={alloc.id} className="card allocation-detail-item">
+                    <div className="allocation-detail-info">
+                      <span className="allocation-detail-amount">
+                        ${alloc.amount.toFixed(2)}
+                      </span>
+                      <span className="allocation-detail-note">
+                        {alloc.note || "No note"}
+                      </span>
+                    </div>
+                    <div className="allocation-detail-right">
+                      <span className="allocation-detail-date">
+                        {new Date(alloc.created_at).toLocaleDateString()}
+                      </span>
+                      {confirmDeleteAlloc === alloc.id ? (
+                        <div className="transaction-confirm">
+                          <button
+                            className="btn small danger"
+                            onClick={() => handleDeleteAllocation(alloc.id)}
+                            disabled={deletingAlloc}
+                          >
+                            {deletingAlloc ? "..." : "Confirm"}
+                          </button>
+                          <button
+                            className="btn small secondary"
+                            onClick={() => setConfirmDeleteAlloc(null)}
+                            disabled={deletingAlloc}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          className="btn small danger tx-delete-btn"
+                          onClick={() => setConfirmDeleteAlloc(alloc.id)}
+                          disabled={deletingAlloc}
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
           <h3 className="section-title">Transactions</h3>
           {visibleTx.length === 0 ? (
             <div className="empty-state card">

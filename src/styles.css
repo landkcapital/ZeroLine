@@ -2004,6 +2004,183 @@ html, body {
   overflow-x: hidden;
 }
 
+/* ===== Allocation Feature ===== */
+
+/* Modal mode toggle (Spend / Allocate / Use Allocation) */
+.modal-mode-toggle {
+  display: flex;
+  gap: 0;
+  margin-bottom: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.modal-mode-btn {
+  flex: 1;
+  padding: 0.5rem 0.25rem;
+  border: none;
+  background: var(--card);
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.modal-mode-btn:not(:last-child) {
+  border-right: 1px solid var(--border);
+}
+
+.modal-mode-btn.active {
+  background: var(--blue1);
+  color: #fff;
+}
+
+/* Allocation list in Use Allocation mode */
+.allocation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.allocation-list-item {
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.allocation-list-item:hover {
+  background: var(--bg);
+}
+
+.allocation-list-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.allocation-list-amount {
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--text);
+}
+
+.allocation-list-budget {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  background: var(--bg);
+  padding: 0.1rem 0.4rem;
+  border-radius: 0.25rem;
+}
+
+.allocation-list-meta {
+  display: flex;
+  gap: 0.5rem;
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+
+/* Allocation resolve info */
+.allocation-resolve-info {
+  background: var(--bg);
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.5rem;
+  font-size: 0.82rem;
+  margin-bottom: 0.75rem;
+  color: var(--text-dim);
+}
+
+/* Allocation diff indicator */
+.allocation-diff {
+  padding: 0.4rem 0.75rem;
+  border-radius: 0.4rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+  text-align: center;
+}
+
+.allocation-diff.over {
+  background: #fff0f0;
+  color: var(--red);
+}
+
+.allocation-diff.under {
+  background: #f0f8ff;
+  color: var(--blue1);
+}
+
+/* Allocated stat value color */
+.stat-value.allocated,
+.summary-value.allocated {
+  color: #e6a817;
+}
+
+/* Progress bar allocated segment */
+.progress-bar {
+  position: relative;
+}
+
+.progress-fill.allocated {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  background: #e6a817;
+  opacity: 0.5;
+  border-radius: 0 999px 999px 0;
+}
+
+/* Allocation detail list in BudgetDetail */
+.allocation-detail-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.allocation-detail-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  border-left: 3px solid #e6a817;
+}
+
+.allocation-detail-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.allocation-detail-amount {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #e6a817;
+}
+
+.allocation-detail-note {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+
+.allocation-detail-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+}
+
+.allocation-detail-date {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+
 @media (max-width: 640px) {
   html, body {
     overscroll-behavior: none;
