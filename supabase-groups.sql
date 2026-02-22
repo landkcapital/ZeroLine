@@ -3,6 +3,10 @@
 -- Run this in your Supabase SQL Editor
 -- ============================================
 
+-- ============================================
+-- 1. CREATE ALL TABLES FIRST
+-- ============================================
+
 -- Profiles table (needed for email lookup — Supabase client can't query auth.users)
 CREATE TABLE IF NOT EXISTS profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -10,7 +14,50 @@ CREATE TABLE IF NOT EXISTS profiles (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Groups table
+CREATE TABLE groups (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  name TEXT NOT NULL,
+  owner_user_id UUID NOT NULL REFERENCES auth.users(id),
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Group members table
+CREATE TABLE group_members (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  group_id UUID NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES auth.users(id),
+  created_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(group_id, user_id)
+);
+
+-- Add group_id to budgets (nullable — null = personal)
+ALTER TABLE budgets ADD COLUMN IF NOT EXISTS group_id UUID REFERENCES groups(id) ON DELETE SET NULL;
+
+-- ============================================
+-- 2. ENABLE RLS ON ALL TABLES
+-- ============================================
+
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE groups ENABLE ROW LEVEL SECURITY;
+ALTER TABLE group_members ENABLE ROW LEVEL SECURITY;
+
+-- ============================================
+-- 3. SECURITY DEFINER helper to avoid infinite recursion
+--    (bypasses RLS when checking membership)
+-- ============================================
+
+CREATE OR REPLACE FUNCTION is_group_member(check_group_id UUID, check_user_id UUID)
+RETURNS BOOLEAN AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM group_members
+    WHERE group_id = check_group_id AND user_id = check_user_id
+  );
+$$ LANGUAGE sql SECURITY DEFINER;
+
+-- ============================================
+-- 4. PROFILES: policies, trigger, backfill
+-- ============================================
 
 CREATE POLICY "Authenticated users can view profiles"
   ON profiles FOR SELECT
@@ -38,68 +85,40 @@ SELECT id, email FROM auth.users
 ON CONFLICT DO NOTHING;
 
 -- ============================================
--- Groups table
+-- 5. GROUPS policies
 -- ============================================
-CREATE TABLE groups (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  name TEXT NOT NULL,
-  owner_user_id UUID NOT NULL REFERENCES auth.users(id),
-  created_at TIMESTAMPTZ DEFAULT now()
-);
 
-ALTER TABLE groups ENABLE ROW LEVEL SECURITY;
-
--- Members can view their groups
 CREATE POLICY "Members can view group"
   ON groups FOR SELECT
-  USING (
-    id IN (SELECT group_id FROM group_members WHERE user_id = auth.uid())
-  );
+  USING (is_group_member(id, auth.uid()));
 
--- Authenticated users can create groups (must be owner)
 CREATE POLICY "Authenticated users can create groups"
   ON groups FOR INSERT
   WITH CHECK (owner_user_id = auth.uid());
 
--- Only owner can update
 CREATE POLICY "Owner can update group"
   ON groups FOR UPDATE
   USING (owner_user_id = auth.uid())
   WITH CHECK (owner_user_id = auth.uid());
 
--- Only owner can delete
 CREATE POLICY "Owner can delete group"
   ON groups FOR DELETE
   USING (owner_user_id = auth.uid());
 
 -- ============================================
--- Group members table
+-- 6. GROUP MEMBERS policies
 -- ============================================
-CREATE TABLE group_members (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  group_id UUID NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES auth.users(id),
-  created_at TIMESTAMPTZ DEFAULT now(),
-  UNIQUE(group_id, user_id)
-);
 
-ALTER TABLE group_members ENABLE ROW LEVEL SECURITY;
-
--- Members of a group can see other members
 CREATE POLICY "Members can view group members"
   ON group_members FOR SELECT
-  USING (
-    group_id IN (SELECT gm.group_id FROM group_members gm WHERE gm.user_id = auth.uid())
-  );
+  USING (is_group_member(group_id, auth.uid()));
 
--- Group owner can add members
 CREATE POLICY "Group owner can add members"
   ON group_members FOR INSERT
   WITH CHECK (
     group_id IN (SELECT g.id FROM groups g WHERE g.owner_user_id = auth.uid())
   );
 
--- Owner or self can remove membership
 CREATE POLICY "Owner or self can remove member"
   ON group_members FOR DELETE
   USING (
@@ -108,18 +127,15 @@ CREATE POLICY "Owner or self can remove member"
   );
 
 -- ============================================
--- Add group_id to budgets (nullable — null = personal)
--- ============================================
-ALTER TABLE budgets ADD COLUMN IF NOT EXISTS group_id UUID REFERENCES groups(id) ON DELETE SET NULL;
-
--- Supplementary RLS policies for group budgets
+-- 7. BUDGETS supplementary policies for groups
 -- (existing personal budget policy remains: auth.uid() = user_id)
+-- ============================================
 
 CREATE POLICY "Members can view group budgets"
   ON budgets FOR SELECT
   USING (
     group_id IS NOT NULL
-    AND group_id IN (SELECT group_id FROM group_members WHERE user_id = auth.uid())
+    AND is_group_member(group_id, auth.uid())
   );
 
 CREATE POLICY "Members can create group budgets"
@@ -128,7 +144,7 @@ CREATE POLICY "Members can create group budgets"
     (group_id IS NULL AND user_id = auth.uid())
     OR (
       group_id IS NOT NULL
-      AND group_id IN (SELECT group_id FROM group_members WHERE user_id = auth.uid())
+      AND is_group_member(group_id, auth.uid())
     )
   );
 
@@ -136,24 +152,27 @@ CREATE POLICY "Members can update group budgets"
   ON budgets FOR UPDATE
   USING (
     group_id IS NOT NULL
-    AND group_id IN (SELECT group_id FROM group_members WHERE user_id = auth.uid())
+    AND is_group_member(group_id, auth.uid())
   );
 
 CREATE POLICY "Members can delete group budgets"
   ON budgets FOR DELETE
   USING (
     group_id IS NOT NULL
-    AND group_id IN (SELECT group_id FROM group_members WHERE user_id = auth.uid())
+    AND is_group_member(group_id, auth.uid())
   );
 
--- Supplementary RLS for transactions on group budgets
+-- ============================================
+-- 8. TRANSACTIONS supplementary policies for group budgets
+-- ============================================
+
 CREATE POLICY "Members can view group budget transactions"
   ON transactions FOR SELECT
   USING (
     budget_id IN (
       SELECT b.id FROM budgets b
-      JOIN group_members gm ON gm.group_id = b.group_id
-      WHERE gm.user_id = auth.uid()
+      WHERE b.group_id IS NOT NULL
+        AND is_group_member(b.group_id, auth.uid())
     )
   );
 
@@ -162,8 +181,8 @@ CREATE POLICY "Members can create group budget transactions"
   WITH CHECK (
     budget_id IN (
       SELECT b.id FROM budgets b
-      JOIN group_members gm ON gm.group_id = b.group_id
-      WHERE gm.user_id = auth.uid()
+      WHERE b.group_id IS NOT NULL
+        AND is_group_member(b.group_id, auth.uid())
     )
   );
 
@@ -172,7 +191,7 @@ CREATE POLICY "Members can delete group budget transactions"
   USING (
     budget_id IN (
       SELECT b.id FROM budgets b
-      JOIN group_members gm ON gm.group_id = b.group_id
-      WHERE gm.user_id = auth.uid()
+      WHERE b.group_id IS NOT NULL
+        AND is_group_member(b.group_id, auth.uid())
     )
   );

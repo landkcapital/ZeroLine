@@ -812,7 +812,7 @@ main {
   }
 
   .page {
-    padding: 1.25rem 0.75rem calc(env(safe-area-inset-bottom, 0px) + 6.5rem);
+    padding: 1.25rem 0.75rem calc(env(safe-area-inset-bottom, 0px) + 7.5rem);
   }
 
   .card {
@@ -1963,7 +1963,7 @@ main {
     border-top: 1px solid var(--border);
     box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.04);
     padding: 0.5rem 0;
-    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 1rem);
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 1.5rem);
     justify-content: space-around;
     transform: translateZ(0);
     -webkit-transform: translateZ(0);
@@ -1979,7 +1979,7 @@ main {
     color: var(--text-dim);
     font-size: 0.65rem;
     font-weight: 600;
-    padding: 0.35rem 1rem;
+    padding: 0.35rem 0.4rem;
     cursor: pointer;
     transition: color 0.15s;
   }
