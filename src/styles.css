@@ -2190,3 +2190,227 @@ html, body {
     touch-action: manipulation;
   }
 }
+
+/* ===== Group Expenses Feature ===== */
+
+/* Member add toggle */
+.member-add-toggle {
+  display: flex;
+  gap: 0;
+  margin-bottom: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+/* Member add row */
+.member-add-row {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.member-add-row input {
+  flex: 1;
+  padding: 0.7rem 0.9rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 0.95rem;
+  outline: none;
+}
+
+.member-add-row input:focus {
+  border-color: var(--blue1);
+  box-shadow: 0 0 0 3px var(--glow);
+}
+
+/* Pending members list */
+.pending-members-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.pending-member-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg);
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--border);
+}
+
+.pending-member-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.pending-member-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.pending-member-type {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+
+/* Spend chooser (Personal vs Group) */
+.spend-chooser-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.spend-chooser-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.15s;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+}
+
+.spend-chooser-item:hover {
+  background: var(--glow);
+  border-color: var(--blue1);
+}
+
+.spend-chooser-icon {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--blue1);
+  background: rgba(47, 125, 255, 0.08);
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  flex-shrink: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.spend-chooser-label {
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--text);
+}
+
+/* Group expense balance card */
+.ge-balance-card,
+.ge-settle-card {
+  margin-bottom: 1.25rem;
+}
+
+.ge-balance-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+}
+
+.ge-total-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  padding: 0.15rem 0;
+}
+
+.ge-total-amount {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.ge-balance-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.ge-balance-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg);
+  border-radius: var(--radius-xs);
+}
+
+.ge-balance-name {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.ge-balance-paid {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--text-dim);
+}
+
+.ge-balance-amount {
+  font-weight: 800;
+  font-size: 1.05rem;
+  letter-spacing: -0.02em;
+}
+
+/* Settle up */
+.ge-settle-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.9rem;
+}
+
+.ge-settle-row:last-child {
+  border-bottom: none;
+}
+
+.ge-settle-from {
+  font-weight: 600;
+  color: var(--red);
+}
+
+.ge-settle-arrow {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+}
+
+.ge-settle-to {
+  font-weight: 600;
+  color: var(--blue1);
+}
+
+.ge-settle-amount {
+  margin-left: auto;
+  font-weight: 800;
+  font-size: 1rem;
+}
+
+/* Split info in group expense modal */
+.ge-split-info {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  padding: 0.5rem 0.75rem;
+  background: var(--bg);
+  border-radius: var(--radius-xs);
+  margin-bottom: 1rem;
+  text-align: center;
+}

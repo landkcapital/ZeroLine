@@ -1,24 +1,66 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
+import GroupExpenseModal from "../components/GroupExpenseModal";
 import Loading from "../components/Loading";
+
+function simplifyDebts(memberBalances) {
+  const creditors = memberBalances
+    .filter((m) => m.balance > 0.005)
+    .map((m) => ({ ...m, remaining: m.balance }))
+    .sort((a, b) => b.remaining - a.remaining);
+
+  const debtors = memberBalances
+    .filter((m) => m.balance < -0.005)
+    .map((m) => ({ ...m, remaining: Math.abs(m.balance) }))
+    .sort((a, b) => b.remaining - a.remaining);
+
+  const settlements = [];
+  let ci = 0;
+  let di = 0;
+
+  while (ci < creditors.length && di < debtors.length) {
+    const amount = Math.min(creditors[ci].remaining, debtors[di].remaining);
+    if (amount > 0.005) {
+      settlements.push({
+        fromName: debtors[di].name,
+        fromIsMe: debtors[di].isCurrentUser,
+        toName: creditors[ci].name,
+        toIsMe: creditors[ci].isCurrentUser,
+        amount: Math.round(amount * 100) / 100,
+      });
+    }
+    creditors[ci].remaining -= amount;
+    debtors[di].remaining -= amount;
+    if (creditors[ci].remaining < 0.005) ci++;
+    if (debtors[di].remaining < 0.005) di++;
+  }
+
+  return settlements;
+}
 
 export default function GroupDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [group, setGroup] = useState(null);
   const [members, setMembers] = useState([]);
-  const [budgets, setBudgets] = useState([]);
+  const [expenses, setExpenses] = useState([]);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [addEmail, setAddEmail] = useState("");
+  const [showExpenseModal, setShowExpenseModal] = useState(false);
+
+  // Add member state
+  const [addMode, setAddMode] = useState("name");
+  const [memberInput, setMemberInput] = useState("");
   const [adding, setAdding] = useState(false);
+
+  // Delete state
   const [confirmRemove, setConfirmRemove] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmDeleteExpense, setConfirmDeleteExpense] = useState(null);
 
-  const isOwner =
-    group && currentUserId && group.owner_user_id === currentUserId;
+  const isOwner = group && currentUserId && group.owner_user_id === currentUserId;
 
   const fetchData = useCallback(async () => {
     try {
@@ -27,7 +69,6 @@ export default function GroupDetail() {
       } = await supabase.auth.getUser();
       setCurrentUserId(user.id);
 
-      // Fetch group
       const { data: groupData, error: groupErr } = await supabase
         .from("groups")
         .select("*")
@@ -36,28 +77,20 @@ export default function GroupDetail() {
       if (groupErr) throw groupErr;
       setGroup(groupData);
 
-      // Fetch members with email from profiles
       const { data: membersData, error: membersErr } = await supabase
         .from("group_members")
-        .select("id, user_id, created_at, profiles(email)")
+        .select("id, user_id, display_name, created_at")
         .eq("group_id", id);
       if (membersErr) throw membersErr;
+      setMembers(membersData || []);
 
-      // Flatten profiles join
-      const membersFlat = (membersData || []).map((m) => ({
-        ...m,
-        email: m.profiles?.email || m.user_id,
-      }));
-      setMembers(membersFlat);
-
-      // Fetch group budgets
-      const { data: budgetsData, error: budgetsErr } = await supabase
-        .from("budgets")
+      const { data: expensesData, error: expensesErr } = await supabase
+        .from("group_expenses")
         .select("*")
         .eq("group_id", id)
-        .order("name");
-      if (budgetsErr) throw budgetsErr;
-      setBudgets(budgetsData || []);
+        .order("occurred_at", { ascending: false });
+      if (expensesErr) throw expensesErr;
+      setExpenses(expensesData || []);
 
       setError(null);
     } catch (err) {
@@ -71,41 +104,57 @@ export default function GroupDetail() {
     fetchData();
   }, [fetchData]);
 
+  // Balance calculations
+  const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0);
+  const memberCount = members.length;
+  const fairShare = memberCount > 0 ? totalExpenses / memberCount : 0;
+
+  const paidByMember = {};
+  for (const e of expenses) {
+    if (e.paid_by_member_id) {
+      paidByMember[e.paid_by_member_id] = (paidByMember[e.paid_by_member_id] || 0) + e.amount;
+    }
+  }
+
+  const memberBalances = members.map((m) => {
+    const paid = paidByMember[m.id] || 0;
+    const balance = paid - fairShare;
+    return {
+      id: m.id,
+      name: m.display_name || "Unknown",
+      userId: m.user_id,
+      paid,
+      balance,
+      isCurrentUser: m.user_id === currentUserId,
+    };
+  });
+
+  const settlements = simplifyDebts(memberBalances);
+
+  // Member name lookup
+  const memberMap = {};
+  for (const m of members) {
+    memberMap[m.id] = m.display_name || "Unknown";
+  }
+
   async function handleAddMember(e) {
     e.preventDefault();
-    if (!addEmail.trim()) return;
+    if (!memberInput.trim()) return;
     setAdding(true);
     setError(null);
 
     try {
-      // Look up user by email via profiles table
-      const { data: profile, error: lookupErr } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("email", addEmail.trim().toLowerCase())
-        .single();
-
-      if (lookupErr || !profile) {
-        setError("No user found with that email address.");
-        setAdding(false);
-        return;
+      if (addMode === "email") {
+        const { error: addErr } = await supabase
+          .rpc("add_user_member", { p_group_id: id, p_email: memberInput.trim() });
+        if (addErr) throw addErr;
+      } else {
+        const { error: addErr } = await supabase
+          .rpc("add_named_member", { p_group_id: id, p_name: memberInput.trim() });
+        if (addErr) throw addErr;
       }
 
-      const { error: addErr } = await supabase
-        .from("group_members")
-        .insert({ group_id: id, user_id: profile.id });
-
-      if (addErr) {
-        if (addErr.code === "23505") {
-          setError("That user is already a member.");
-        } else {
-          throw addErr;
-        }
-        setAdding(false);
-        return;
-      }
-
-      setAddEmail("");
+      setMemberInput("");
       await fetchData();
     } catch (err) {
       setError(err.message || "Failed to add member");
@@ -128,15 +177,31 @@ export default function GroupDetail() {
     }
   }
 
+  async function handleDeleteExpense(expenseId) {
+    try {
+      const { error: delErr } = await supabase
+        .from("group_expenses")
+        .delete()
+        .eq("id", expenseId);
+      if (delErr) throw delErr;
+      setConfirmDeleteExpense(null);
+      await fetchData();
+    } catch (err) {
+      setError(err.message || "Failed to delete expense");
+    }
+  }
+
   async function handleDeleteGroup() {
     try {
-      // Delete all group budgets' transactions first
-      const budgetIds = budgets.map((b) => b.id);
+      await supabase.from("group_expenses").delete().eq("group_id", id);
+
+      const { data: budgets } = await supabase
+        .from("budgets")
+        .select("id")
+        .eq("group_id", id);
+      const budgetIds = (budgets || []).map((b) => b.id);
       if (budgetIds.length > 0) {
-        await supabase
-          .from("transactions")
-          .delete()
-          .in("budget_id", budgetIds);
+        await supabase.from("transactions").delete().in("budget_id", budgetIds);
         await supabase.from("budgets").delete().eq("group_id", id);
       }
 
@@ -172,10 +237,7 @@ export default function GroupDetail() {
 
   return (
     <div className="page group-detail-page">
-      <button
-        className="btn secondary back-btn"
-        onClick={() => navigate("/groups")}
-      >
+      <button className="btn secondary back-btn" onClick={() => navigate("/groups")}>
         &larr; Back to Groups
       </button>
 
@@ -192,9 +254,108 @@ export default function GroupDetail() {
       </div>
 
       {error && (
-        <p className="form-error" style={{ margin: "0.75rem 0" }}>
-          {error}
-        </p>
+        <p className="form-error" style={{ margin: "0.75rem 0" }}>{error}</p>
+      )}
+
+      {/* Add Expense Button */}
+      <button
+        className="btn primary"
+        onClick={() => setShowExpenseModal(true)}
+        style={{ width: "100%", marginBottom: "1.25rem" }}
+      >
+        + Add Expense
+      </button>
+
+      {/* Balance Summary */}
+      {expenses.length > 0 && (
+        <>
+          <div className="card ge-balance-card">
+            <h3 className="ge-balance-title">Balances</h3>
+            <div className="ge-total-row">
+              <span>Total expenses</span>
+              <span className="ge-total-amount">${totalExpenses.toFixed(2)}</span>
+            </div>
+            <div className="ge-total-row" style={{ marginBottom: "0.75rem" }}>
+              <span>Per person</span>
+              <span>${fairShare.toFixed(2)}</span>
+            </div>
+            <div className="ge-balance-list">
+              {memberBalances.map((mb) => (
+                <div key={mb.id} className="ge-balance-item">
+                  <div className="ge-balance-name">
+                    {mb.isCurrentUser ? "You" : mb.name}
+                    <span className="ge-balance-paid">paid ${mb.paid.toFixed(2)}</span>
+                  </div>
+                  <span className={`ge-balance-amount ${mb.balance >= 0 ? "positive" : "negative"}`}>
+                    {mb.balance >= 0 ? "+" : ""}${mb.balance.toFixed(2)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {settlements.length > 0 && (
+            <div className="card ge-settle-card">
+              <h3 className="ge-balance-title">Settle Up</h3>
+              {settlements.map((s, i) => (
+                <div key={i} className="ge-settle-row">
+                  <span className="ge-settle-from">{s.fromIsMe ? "You" : s.fromName}</span>
+                  <span className="ge-settle-arrow">&rarr;</span>
+                  <span className="ge-settle-to">{s.toIsMe ? "You" : s.toName}</span>
+                  <span className="ge-settle-amount">${s.amount.toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Expenses Log */}
+      <h3 className="section-title">Expenses</h3>
+      {expenses.length === 0 ? (
+        <div className="empty-state card">
+          <p>No expenses yet. Add one to start tracking!</p>
+        </div>
+      ) : (
+        <div className="transaction-list" style={{ marginBottom: "1.25rem" }}>
+          {expenses.map((e) => {
+            const payer = memberMap[e.paid_by_member_id] || "Removed member";
+            const payerIsMe = members.find(
+              (m) => m.id === e.paid_by_member_id
+            )?.user_id === currentUserId;
+            return (
+              <div key={e.id} className="card transaction-item">
+                <div className="transaction-info">
+                  <span className="transaction-amount">${e.amount.toFixed(2)}</span>
+                  <span className="transaction-budget-tag">{payerIsMe ? "You" : payer}</span>
+                  <span className="transaction-note">{e.note || "No note"}</span>
+                </div>
+                <div className="transaction-right">
+                  <span className="transaction-date">
+                    {new Date(e.occurred_at).toLocaleDateString()}
+                  </span>
+                  {confirmDeleteExpense === e.id ? (
+                    <div className="transaction-confirm">
+                      <button className="btn small danger" onClick={() => handleDeleteExpense(e.id)}>
+                        Confirm
+                      </button>
+                      <button className="btn small secondary" onClick={() => setConfirmDeleteExpense(null)}>
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      className="btn small danger tx-delete-btn"
+                      onClick={() => setConfirmDeleteExpense(e.id)}
+                    >
+                      Delete
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       )}
 
       {/* Members Section */}
@@ -203,33 +364,29 @@ export default function GroupDetail() {
         {members.map((m) => (
           <div key={m.id} className="card member-item">
             <div className="member-info">
-              <span className="member-email">{m.email}</span>
+              <span className="member-email">
+                {m.user_id === currentUserId ? "You" : m.display_name || "Unknown"}
+              </span>
               {m.user_id === group.owner_user_id && (
                 <span className="type-badge">Owner</span>
+              )}
+              {!m.user_id && (
+                <span className="period-badge" style={{ fontSize: "0.6rem" }}>Non-user</span>
               )}
             </div>
             {isOwner && m.user_id !== currentUserId && (
               <>
                 {confirmRemove === m.id ? (
                   <div className="transaction-confirm">
-                    <button
-                      className="btn small danger"
-                      onClick={() => handleRemoveMember(m.id)}
-                    >
+                    <button className="btn small danger" onClick={() => handleRemoveMember(m.id)}>
                       Confirm
                     </button>
-                    <button
-                      className="btn small secondary"
-                      onClick={() => setConfirmRemove(null)}
-                    >
+                    <button className="btn small secondary" onClick={() => setConfirmRemove(null)}>
                       Cancel
                     </button>
                   </div>
                 ) : (
-                  <button
-                    className="btn small danger"
-                    onClick={() => setConfirmRemove(m.id)}
-                  >
+                  <button className="btn small danger" onClick={() => setConfirmRemove(m.id)}>
                     Remove
                   </button>
                 )}
@@ -243,14 +400,30 @@ export default function GroupDetail() {
       {isOwner && (
         <div className="card add-member-form">
           <h3>Add Member</h3>
+          <div className="member-add-toggle">
+            <button
+              className={`modal-mode-btn ${addMode === "name" ? "active" : ""}`}
+              onClick={() => setAddMode("name")}
+              type="button"
+            >
+              By Name
+            </button>
+            <button
+              className={`modal-mode-btn ${addMode === "email" ? "active" : ""}`}
+              onClick={() => setAddMode("email")}
+              type="button"
+            >
+              ZeroLine User
+            </button>
+          </div>
           <form onSubmit={handleAddMember}>
             <div className="form-group">
-              <label>Email Address</label>
+              <label>{addMode === "email" ? "Email Address" : "Name"}</label>
               <input
-                type="email"
-                value={addEmail}
-                onChange={(e) => setAddEmail(e.target.value)}
-                placeholder="member@example.com"
+                type={addMode === "email" ? "email" : "text"}
+                value={memberInput}
+                onChange={(e) => setMemberInput(e.target.value)}
+                placeholder={addMode === "email" ? "member@example.com" : "Person's name"}
                 required
               />
             </div>
@@ -261,59 +434,19 @@ export default function GroupDetail() {
         </div>
       )}
 
-      {/* Group Budgets */}
-      <h3 className="section-title" style={{ marginTop: "1.5rem" }}>
-        Group Budgets
-      </h3>
-      {budgets.length === 0 ? (
-        <div className="empty-state card">
-          <p>No budgets in this group yet. Create one on the Budgets page.</p>
-        </div>
-      ) : (
-        <div className="budget-list">
-          {budgets.map((budget) => (
-            <div
-              key={budget.id}
-              className="card budget-list-item"
-              onClick={() => navigate(`/budget/${budget.id}`)}
-              style={{ cursor: "pointer" }}
-            >
-              <div className="budget-list-info">
-                <h3>{budget.name}</h3>
-                <span
-                  className={`type-badge ${budget.type === "subscription" ? "subscription" : ""}`}
-                >
-                  {budget.type === "subscription" ? "Fixed" : "Spending"}
-                </span>
-                <span className="period-badge">{budget.period}</span>
-                <span className="budget-amount">
-                  ${budget.goal_amount.toFixed(2)}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
       {/* Delete Group (owner only) */}
       {isOwner && (
         <div className="delete-budget-section">
           {confirmDelete ? (
             <div className="delete-budget-confirm">
               <p>
-                Delete <strong>{group.name}</strong> and all its budgets?
+                Delete <strong>{group.name}</strong> and all its data?
               </p>
               <div className="delete-budget-actions">
-                <button
-                  className="btn small danger"
-                  onClick={handleDeleteGroup}
-                >
+                <button className="btn small danger" onClick={handleDeleteGroup}>
                   Yes, Delete
                 </button>
-                <button
-                  className="btn small secondary"
-                  onClick={() => setConfirmDelete(false)}
-                >
+                <button className="btn small secondary" onClick={() => setConfirmDelete(false)}>
                   Cancel
                 </button>
               </div>
@@ -327,6 +460,15 @@ export default function GroupDetail() {
             </button>
           )}
         </div>
+      )}
+
+      {showExpenseModal && (
+        <GroupExpenseModal
+          groupId={id}
+          groupName={group.name}
+          onClose={() => setShowExpenseModal(false)}
+          onAdded={fetchData}
+        />
       )}
     </div>
   );

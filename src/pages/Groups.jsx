@@ -8,9 +8,16 @@ export default function Groups() {
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [showForm, setShowForm] = useState(false);
+
+  // Creation wizard state
+  const [showCreate, setShowCreate] = useState(false);
+  const [step, setStep] = useState(1); // 1=name, 2=add members
   const [name, setName] = useState("");
+  const [pendingMembers, setPendingMembers] = useState([]);
+  const [addMode, setAddMode] = useState("name"); // "name" | "email"
+  const [memberInput, setMemberInput] = useState("");
   const [saving, setSaving] = useState(false);
+  const [addError, setAddError] = useState(null);
 
   const fetchGroups = useCallback(async () => {
     try {
@@ -18,7 +25,6 @@ export default function Groups() {
         data: { user },
       } = await supabase.auth.getUser();
 
-      // Get group IDs user belongs to
       const { data: memberships, error: memErr } = await supabase
         .from("group_members")
         .select("group_id")
@@ -34,7 +40,6 @@ export default function Groups() {
         return;
       }
 
-      // Fetch groups
       const { data: groupsData, error: groupsErr } = await supabase
         .from("groups")
         .select("*")
@@ -43,7 +48,6 @@ export default function Groups() {
 
       if (groupsErr) throw groupsErr;
 
-      // Get member counts
       const groupsWithCounts = await Promise.all(
         (groupsData || []).map(async (g) => {
           const { count } = await supabase
@@ -67,26 +71,74 @@ export default function Groups() {
     fetchGroups();
   }, [fetchGroups]);
 
-  async function handleCreate(e) {
-    e.preventDefault();
+  function handleAddPending() {
+    if (!memberInput.trim()) return;
+    setAddError(null);
+
+    const val = memberInput.trim();
+    const isDup = pendingMembers.some(
+      (m) => m.value.toLowerCase() === val.toLowerCase()
+    );
+    if (isDup) {
+      setAddError("Already added.");
+      return;
+    }
+
+    setPendingMembers([...pendingMembers, { type: addMode, value: val }]);
+    setMemberInput("");
+  }
+
+  function removePending(idx) {
+    setPendingMembers(pendingMembers.filter((_, i) => i !== idx));
+  }
+
+  async function handleCreate() {
     if (!name.trim()) return;
     setSaving(true);
     setError(null);
+    setAddError(null);
 
     try {
-      // Use RPC function — creates group + adds creator as member atomically
+      // 1. Create group via RPC (auto-adds creator as member)
       const { data: group, error: groupErr } = await supabase
         .rpc("create_group", { group_name: name.trim() });
       if (groupErr) throw groupErr;
 
-      setName("");
-      setShowForm(false);
-      await fetchGroups();
+      // 2. Add each pending member
+      const errors = [];
+      for (const pm of pendingMembers) {
+        if (pm.type === "email") {
+          const { error: addErr } = await supabase
+            .rpc("add_user_member", { p_group_id: group.id, p_email: pm.value });
+          if (addErr) errors.push(`${pm.value}: ${addErr.message}`);
+        } else {
+          const { error: addErr } = await supabase
+            .rpc("add_named_member", { p_group_id: group.id, p_name: pm.value });
+          if (addErr) errors.push(`${pm.value}: ${addErr.message}`);
+        }
+      }
+
+      if (errors.length > 0) {
+        setAddError("Some members couldn't be added: " + errors.join(", "));
+      }
+
+      resetForm();
+      navigate(`/group/${group.id}`);
     } catch (err) {
       setError(err.message || "Failed to create group");
     } finally {
       setSaving(false);
     }
+  }
+
+  function resetForm() {
+    setShowCreate(false);
+    setStep(1);
+    setName("");
+    setPendingMembers([]);
+    setMemberInput("");
+    setAddMode("name");
+    setAddError(null);
   }
 
   if (loading) return <Loading />;
@@ -101,52 +153,133 @@ export default function Groups() {
         </p>
       )}
 
-      {showForm ? (
+      {showCreate ? (
         <div className="card group-form">
-          <h3>New Group</h3>
-          <form onSubmit={handleCreate}>
-            <div className="form-group">
-              <label>Group Name</label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Household"
-                required
-                autoFocus
-              />
-            </div>
-            <div className="form-actions">
-              <button type="submit" className="btn primary" disabled={saving}>
-                {saving ? "Creating..." : "Create Group"}
-              </button>
-              <button
-                type="button"
-                className="btn secondary"
-                onClick={() => {
-                  setShowForm(false);
-                  setName("");
-                }}
-                disabled={saving}
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
+          {step === 1 ? (
+            <>
+              <h3>New Group</h3>
+              <div className="form-group">
+                <label>Group Name</label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. Household, Trip to Bali"
+                  autoFocus
+                  onKeyDown={(e) => e.key === "Enter" && name.trim() && (e.preventDefault(), setStep(2))}
+                />
+              </div>
+              <div className="form-actions">
+                <button
+                  className="btn primary"
+                  onClick={() => name.trim() && setStep(2)}
+                  disabled={!name.trim()}
+                >
+                  Next
+                </button>
+                <button className="btn secondary" onClick={resetForm}>
+                  Cancel
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <h3>Add Members to &ldquo;{name}&rdquo;</h3>
+              <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", marginBottom: "1rem" }}>
+                You&apos;re already in the group. Add others below.
+              </p>
+
+              <div className="member-add-toggle">
+                <button
+                  className={`modal-mode-btn ${addMode === "name" ? "active" : ""}`}
+                  onClick={() => setAddMode("name")}
+                  type="button"
+                >
+                  By Name
+                </button>
+                <button
+                  className={`modal-mode-btn ${addMode === "email" ? "active" : ""}`}
+                  onClick={() => setAddMode("email")}
+                  type="button"
+                >
+                  ZeroLine User
+                </button>
+              </div>
+
+              <div className="member-add-row">
+                <input
+                  type={addMode === "email" ? "email" : "text"}
+                  value={memberInput}
+                  onChange={(e) => setMemberInput(e.target.value)}
+                  placeholder={addMode === "email" ? "email@example.com" : "Person's name"}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleAddPending();
+                    }
+                  }}
+                />
+                <button className="btn small" onClick={handleAddPending} type="button">
+                  Add
+                </button>
+              </div>
+
+              {addError && <p className="form-error">{addError}</p>}
+
+              {pendingMembers.length > 0 && (
+                <div className="pending-members-list">
+                  {pendingMembers.map((m, i) => (
+                    <div key={i} className="pending-member-item">
+                      <div className="pending-member-info">
+                        <span className="pending-member-name">{m.value}</span>
+                        <span className="pending-member-type">
+                          {m.type === "email" ? "ZeroLine user" : "Name only"}
+                        </span>
+                      </div>
+                      <button
+                        className="btn small danger"
+                        onClick={() => removePending(i)}
+                        type="button"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="form-actions" style={{ marginTop: "1rem" }}>
+                <button
+                  className="btn primary"
+                  onClick={handleCreate}
+                  disabled={saving}
+                >
+                  {saving ? "Creating..." : "Create Group"}
+                </button>
+                <button
+                  className="btn secondary"
+                  onClick={() => setStep(1)}
+                  disabled={saving}
+                >
+                  Back
+                </button>
+              </div>
+            </>
+          )}
         </div>
       ) : (
         <button
           className="btn primary"
-          onClick={() => setShowForm(true)}
+          onClick={() => setShowCreate(true)}
           style={{ marginBottom: "1rem", width: "100%" }}
         >
           + Create Group
         </button>
       )}
 
-      {groups.length === 0 && !showForm ? (
+      {groups.length === 0 && !showCreate ? (
         <div className="empty-state card">
-          <p>No groups yet. Create one to share budgets!</p>
+          <p>No groups yet. Create one to split expenses!</p>
         </div>
       ) : (
         <div className="group-list">

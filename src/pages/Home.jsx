@@ -7,6 +7,7 @@ import { collectLeftovers, processContributions } from "../lib/goals";
 import BudgetCard from "../components/BudgetCard";
 import AffordCheckCard from "../components/AffordCheckCard";
 import AddTransactionModal from "../components/AddTransactionModal";
+import GroupExpenseModal from "../components/GroupExpenseModal";
 import Loading from "../components/Loading";
 
 function normalize(amount, fromPeriod, toPeriod) {
@@ -23,9 +24,12 @@ export default function Home() {
   const [allocatedMap, setAllocatedMap] = useState({});
   const [mainGoal, setMainGoal] = useState(null);
   const [groupMap, setGroupMap] = useState({});
+  const [userGroups, setUserGroups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [showChooser, setShowChooser] = useState(false);
+  const [showGroupExpense, setShowGroupExpense] = useState(null);
   const [viewPeriod, setViewPeriod] = useState(
     () => localStorage.getItem("viewPeriod") || "fortnightly"
   );
@@ -140,6 +144,23 @@ export default function Home() {
         setMainGoal(null);
       }
 
+      // Fetch user's groups for the spend chooser
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data: memberships } = await supabase
+        .from("group_members")
+        .select("group_id")
+        .eq("user_id", user.id);
+      const myGroupIds = [...new Set((memberships || []).map((m) => m.group_id))];
+      if (myGroupIds.length > 0) {
+        const { data: myGroups } = await supabase
+          .from("groups")
+          .select("id, name")
+          .in("id", myGroupIds);
+        setUserGroups(myGroups || []);
+      } else {
+        setUserGroups([]);
+      }
+
       setError(null);
     } catch (err) {
       setError(err.message || "Failed to load data");
@@ -206,13 +227,23 @@ export default function Home() {
 
   const hasAny = budgets.length > 0;
   const hasSpending = spendingBudgets.length > 0;
+  const canSpend = hasSpending || userGroups.length > 0;
+
+  function handlePlusClick() {
+    if (!canSpend) return;
+    if (userGroups.length > 0) {
+      setShowChooser(true);
+    } else {
+      setShowModal(true);
+    }
+  }
 
   return (
     <div className="page home-page">
       <button
-        className={`spend-btn${!hasSpending ? " disabled" : ""}`}
-        onClick={() => hasSpending && setShowModal(true)}
-        disabled={!hasSpending}
+        className={`spend-btn${!canSpend ? " disabled" : ""}`}
+        onClick={handlePlusClick}
+        disabled={!canSpend}
       >
         <span className="spend-btn-icon-ring">
           <span className="spend-btn-icon">+</span>
@@ -366,6 +397,38 @@ export default function Home() {
         </>
       )}
 
+      {showChooser && (
+        <div className="modal-overlay" onClick={() => setShowChooser(false)}>
+          <div className="modal card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>What&apos;s this for?</h2>
+              <button className="close-btn" onClick={() => setShowChooser(false)}>&times;</button>
+            </div>
+            <div className="spend-chooser-list">
+              {hasSpending && (
+                <button
+                  className="spend-chooser-item"
+                  onClick={() => { setShowChooser(false); setShowModal(true); }}
+                >
+                  <span className="spend-chooser-icon">You</span>
+                  <span className="spend-chooser-label">Personal</span>
+                </button>
+              )}
+              {userGroups.map((g) => (
+                <button
+                  key={g.id}
+                  className="spend-chooser-item"
+                  onClick={() => { setShowChooser(false); setShowGroupExpense(g); }}
+                >
+                  <span className="spend-chooser-icon">Grp</span>
+                  <span className="spend-chooser-label">{g.name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {showModal && (
         <AddTransactionModal
           budgets={spendingBudgets}
@@ -375,6 +438,15 @@ export default function Home() {
           mainGoal={mainGoal}
           groupMap={groupMap}
           onClose={() => setShowModal(false)}
+          onAdded={fetchData}
+        />
+      )}
+
+      {showGroupExpense && (
+        <GroupExpenseModal
+          groupId={showGroupExpense.id}
+          groupName={showGroupExpense.name}
+          onClose={() => setShowGroupExpense(null)}
           onAdded={fetchData}
         />
       )}
