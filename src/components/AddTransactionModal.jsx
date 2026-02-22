@@ -11,6 +11,12 @@ function toLocalDatetime(date) {
 }
 
 export default function AddTransactionModal({ budgets, spentMap = {}, debtMap = {}, allocatedMap = {}, mainGoal, groupMap = {}, onClose, onAdded }) {
+  // Lock body scroll while modal is open
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = ""; };
+  }, []);
+
   const [mode, setMode] = useState("spend"); // "spend" | "allocate" | "use-allocation"
   const [amount, setAmount] = useState("");
   const [budgetId, setBudgetId] = useState(budgets[0]?.id || "");

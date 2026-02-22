@@ -173,6 +173,14 @@ export default function Home() {
     fetchData();
   }, [fetchData]);
 
+  // Lock body scroll when chooser modal is open
+  useEffect(() => {
+    if (showChooser) {
+      document.body.style.overflow = "hidden";
+      return () => { document.body.style.overflow = ""; };
+    }
+  }, [showChooser]);
+
   if (loading) return <Loading />;
 
   if (error) {

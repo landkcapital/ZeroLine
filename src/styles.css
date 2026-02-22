@@ -670,10 +670,13 @@ main {
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  z-index: 200;
-  padding: 1rem;
+  z-index: 10000;
+  padding: 2rem 1rem;
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 5rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .modal {
@@ -681,6 +684,8 @@ main {
   max-width: 440px;
   animation: modalIn 0.2s ease;
   box-shadow: var(--shadow-lg);
+  margin: auto 0;
+  flex-shrink: 0;
 }
 
 @keyframes modalIn {

@@ -2,6 +2,12 @@ import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
 
 export default function GroupExpenseModal({ groupId, groupName, userBudgets = [], onClose, onAdded }) {
+  // Lock body scroll while modal is open
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = ""; };
+  }, []);
+
   const [members, setMembers] = useState([]);
   const [paidByMemberId, setPaidByMemberId] = useState("");
   const [amount, setAmount] = useState("");
