@@ -21,6 +21,7 @@ export default function Home() {
   const [spentMap, setSpentMap] = useState({});
   const [debtMap, setDebtMap] = useState({});
   const [mainGoal, setMainGoal] = useState(null);
+  const [groupMap, setGroupMap] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showModal, setShowModal] = useState(false);
@@ -42,6 +43,22 @@ export default function Home() {
       }
 
       setBudgets(budgetsData);
+
+      // Fetch group names for any group budgets
+      const groupIds = [...new Set(
+        budgetsData.filter((b) => b.group_id).map((b) => b.group_id)
+      )];
+      let newGroupMap = {};
+      if (groupIds.length > 0) {
+        const { data: groupsData } = await supabase
+          .from("groups")
+          .select("id, name")
+          .in("id", groupIds);
+        for (const g of groupsData || []) {
+          newGroupMap[g.id] = g.name;
+        }
+      }
+      setGroupMap(newGroupMap);
 
       const spendingBudgets = budgetsData.filter((b) => b.type !== "subscription");
 
@@ -96,7 +113,9 @@ export default function Home() {
         .order("sort_order");
 
       if (goalsData && goalsData.length > 0) {
-        await collectLeftovers(supabase, budgetsData, allTx || [], goalsData);
+        // Only collect leftovers from personal budgets
+        const personalBudgets = budgetsData.filter((b) => !b.group_id);
+        await collectLeftovers(supabase, personalBudgets, allTx || [], goalsData);
         await processContributions(supabase, goalsData);
         // Re-fetch goals after processing to get updated saved_amount
         const { data: updatedGoals } = await supabase
@@ -135,8 +154,20 @@ export default function Home() {
     );
   }
 
-  const subscriptions = budgets.filter((b) => b.type === "subscription");
+  const personalBudgets = budgets.filter((b) => !b.group_id);
+  const groupBudgets = budgets.filter((b) => b.group_id);
+
+  const subscriptions = personalBudgets.filter((b) => b.type === "subscription");
   const spendingBudgets = budgets.filter((b) => b.type !== "subscription");
+  const personalSpending = personalBudgets.filter((b) => b.type !== "subscription");
+
+  // Group budgets grouped by group name
+  const groupsByName = {};
+  for (const b of groupBudgets) {
+    const gName = groupMap[b.group_id] || "Group";
+    if (!groupsByName[gName]) groupsByName[gName] = [];
+    groupsByName[gName].push(b);
+  }
 
   const totalSubscriptions = subscriptions.reduce(
     (s, b) => s + normalize(b.goal_amount, b.period, viewPeriod), 0
@@ -212,12 +243,12 @@ export default function Home() {
       ) : (
         <>
           {hasSpending && (
-            <AffordCheckCard budgets={spendingBudgets} spentMap={spentMap} debtMap={debtMap} mainGoal={mainGoal} />
+            <AffordCheckCard budgets={spendingBudgets} spentMap={spentMap} debtMap={debtMap} mainGoal={mainGoal} groupMap={groupMap} />
           )}
 
-          {hasSpending && (
+          {personalSpending.length > 0 && (
             <div className="budget-grid">
-              {spendingBudgets.map((budget) => (
+              {personalSpending.map((budget) => (
                 <BudgetCard
                   key={budget.id}
                   budget={budget}
@@ -227,6 +258,50 @@ export default function Home() {
               ))}
             </div>
           )}
+
+          {Object.entries(groupsByName).map(([gName, gBudgets]) => {
+            const gSpending = gBudgets.filter((b) => b.type !== "subscription");
+            const gSubs = gBudgets.filter((b) => b.type === "subscription");
+            return (
+              <div key={gName}>
+                <h3 className="section-title">{gName}</h3>
+                {gSpending.length > 0 && (
+                  <div className="budget-grid">
+                    {gSpending.map((budget) => (
+                      <BudgetCard
+                        key={budget.id}
+                        budget={budget}
+                        spent={spentMap[budget.id] || 0}
+                        carriedDebt={debtMap[budget.id] || 0}
+                      />
+                    ))}
+                  </div>
+                )}
+                {gSubs.length > 0 && (
+                  <div className="card subscription-section">
+                    <div className="subscription-header">
+                      <h3 className="subscription-section-title">{gName} Subscriptions</h3>
+                    </div>
+                    {gSubs.map((sub) => (
+                      <div
+                        key={sub.id}
+                        className="subscription-row"
+                        onClick={() => navigate(`/budget/${sub.id}`)}
+                      >
+                        <div className="subscription-row-left">
+                          <span className="subscription-name">{sub.name}</span>
+                          <span className="period-badge">{getPeriodLabel(sub.period)}</span>
+                        </div>
+                        <div className="subscription-row-right">
+                          <span className="subscription-amount">${sub.goal_amount.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
 
           {subscriptions.length > 0 && (
             <div className="card subscription-section">
@@ -279,6 +354,7 @@ export default function Home() {
           spentMap={spentMap}
           debtMap={debtMap}
           mainGoal={mainGoal}
+          groupMap={groupMap}
           onClose={() => setShowModal(false)}
           onAdded={fetchData}
         />

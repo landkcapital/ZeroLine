@@ -47,6 +47,8 @@ const EMPTY_FORM = {
 
 export default function Budgets() {
   const [budgets, setBudgets] = useState([]);
+  const [groups, setGroups] = useState([]);
+  const [scope, setScope] = useState("personal");
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState(EMPTY_FORM);
   const [editingId, setEditingId] = useState(null);
@@ -55,6 +57,25 @@ export default function Budgets() {
   const [confirmDelete, setConfirmDelete] = useState(null);
 
   async function fetchBudgets() {
+    // Fetch user's groups
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data: memberships } = await supabase
+      .from("group_members")
+      .select("group_id")
+      .eq("user_id", user.id);
+    const groupIds = (memberships || []).map((m) => m.group_id);
+
+    let groupsData = [];
+    if (groupIds.length > 0) {
+      const { data } = await supabase
+        .from("groups")
+        .select("id, name")
+        .in("id", groupIds);
+      groupsData = data || [];
+    }
+    setGroups(groupsData);
+
+    // RLS returns personal + group budgets
     const { data } = await supabase
       .from("budgets")
       .select("*")
@@ -69,6 +90,7 @@ export default function Budgets() {
 
   function handleEdit(budget) {
     setEditingId(budget.id);
+    setScope(budget.group_id || "personal");
     setForm({
       name: budget.name,
       type: budget.type || "spending",
@@ -81,6 +103,7 @@ export default function Budgets() {
 
   function handleCancel() {
     setEditingId(null);
+    setScope("personal");
     setForm(EMPTY_FORM);
     setError(null);
   }
@@ -104,6 +127,7 @@ export default function Budgets() {
       period: form.period,
       goal_amount: parseFloat(form.goal_amount),
       renew_anchor: form.renew_anchor,
+      group_id: scope !== "personal" ? scope : null,
     };
 
     if (editingId) {
@@ -131,6 +155,7 @@ export default function Budgets() {
 
     setForm(EMPTY_FORM);
     setEditingId(null);
+    setScope("personal");
     setSaving(false);
     await fetchBudgets();
   }
@@ -206,6 +231,31 @@ export default function Budgets() {
     return null;
   }
 
+  function renderBudgetItem(budget, isSub = false, isGroup = false) {
+    return (
+      <div key={budget.id} className="card budget-list-item">
+        <div className="budget-list-info">
+          <h3>{budget.name}</h3>
+          {isSub && <span className="type-badge subscription">Fixed</span>}
+          {isGroup && <span className="type-badge">Group</span>}
+          <span className="period-badge">{budget.period}</span>
+          <span className="budget-amount">${budget.goal_amount.toFixed(2)}</span>
+        </div>
+        <div className="budget-list-actions">
+          <button className="btn small" onClick={() => handleEdit(budget)}>Edit</button>
+          {confirmDelete === budget.id ? (
+            <>
+              <button className="btn small danger" onClick={() => handleDelete(budget.id)}>Confirm</button>
+              <button className="btn small secondary" onClick={() => setConfirmDelete(null)}>Cancel</button>
+            </>
+          ) : (
+            <button className="btn small danger" onClick={() => setConfirmDelete(budget.id)}>Delete</button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="page budgets-page">
       <div className="card budget-form-card">
@@ -259,6 +309,22 @@ export default function Budgets() {
             </div>
           </div>
           <div className="form-row renew-row">
+            {groups.length > 0 && (
+              <div className="form-group">
+                <label>Scope</label>
+                <select
+                  value={scope}
+                  onChange={(e) => setScope(e.target.value)}
+                >
+                  <option value="personal">Personal</option>
+                  {groups.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             {renderRenewPicker()}
           </div>
           {error && <p className="form-error">{error}</p>}
@@ -288,53 +354,53 @@ export default function Budgets() {
           <p>No budgets yet. Create your first one above.</p>
         </div>
       ) : (
-        <div className="budget-list">
-          {budgets.map((budget) => (
-            <div key={budget.id} className="card budget-list-item">
-              <div className="budget-list-info">
-                <h3>{budget.name}</h3>
-                <span className={`type-badge ${budget.type === "subscription" ? "subscription" : ""}`}>
-                  {budget.type === "subscription" ? "Fixed" : "Spending"}
-                </span>
-                <span className="period-badge">{budget.period}</span>
-                <span className="budget-amount">
-                  ${budget.goal_amount.toFixed(2)}
-                </span>
-              </div>
-              <div className="budget-list-actions">
-                <button
-                  className="btn small"
-                  onClick={() => handleEdit(budget)}
-                >
-                  Edit
-                </button>
-                {confirmDelete === budget.id ? (
+        <>
+          {(() => {
+            const personal = budgets.filter((b) => !b.group_id);
+            const personalSpending = personal.filter((b) => b.type !== "subscription");
+            const personalSubs = personal.filter((b) => b.type === "subscription");
+            const groupBudgets = budgets.filter((b) => b.group_id);
+            const groupMap = {};
+            for (const g of groups) groupMap[g.id] = g.name;
+            const groupedByGroup = {};
+            for (const b of groupBudgets) {
+              const gName = groupMap[b.group_id] || "Group";
+              if (!groupedByGroup[gName]) groupedByGroup[gName] = [];
+              groupedByGroup[gName].push(b);
+            }
+
+            return (
+              <>
+                {personalSpending.length > 0 && (
                   <>
-                    <button
-                      className="btn small danger"
-                      onClick={() => handleDelete(budget.id)}
-                    >
-                      Confirm
-                    </button>
-                    <button
-                      className="btn small secondary"
-                      onClick={() => setConfirmDelete(null)}
-                    >
-                      Cancel
-                    </button>
+                    <h3 className="section-title">Spending</h3>
+                    <div className="budget-list">
+                      {personalSpending.map((budget) => renderBudgetItem(budget))}
+                    </div>
                   </>
-                ) : (
-                  <button
-                    className="btn small danger"
-                    onClick={() => setConfirmDelete(budget.id)}
-                  >
-                    Delete
-                  </button>
                 )}
-              </div>
-            </div>
-          ))}
-        </div>
+
+                {personalSubs.length > 0 && (
+                  <>
+                    <h3 className="section-title" style={{ marginTop: "1.5rem" }}>Subscriptions</h3>
+                    <div className="budget-list">
+                      {personalSubs.map((budget) => renderBudgetItem(budget, true))}
+                    </div>
+                  </>
+                )}
+
+                {Object.entries(groupedByGroup).map(([gName, gBudgets]) => (
+                  <div key={gName}>
+                    <h3 className="section-title" style={{ marginTop: "1.5rem" }}>{gName}</h3>
+                    <div className="budget-list">
+                      {gBudgets.map((budget) => renderBudgetItem(budget, budget.type === "subscription", true))}
+                    </div>
+                  </div>
+                ))}
+              </>
+            );
+          })()}
+        </>
       )}
     </div>
   );

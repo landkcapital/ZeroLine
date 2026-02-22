@@ -11,6 +11,8 @@ import BudgetDetail from "./pages/BudgetDetail";
 import History from "./pages/History";
 import Account from "./pages/Account";
 import Goals from "./pages/Goals";
+import Groups from "./pages/Groups";
+import GroupDetail from "./pages/GroupDetail";
 import "./styles.css";
 
 function ProtectedRoute({ session, ready, children }) {
@@ -106,6 +108,22 @@ export default function App() {
           element={
             <ProtectedRoute session={session} ready={ready}>
               <Goals />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/groups"
+          element={
+            <ProtectedRoute session={session} ready={ready}>
+              <Groups />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/group/:id"
+          element={
+            <ProtectedRoute session={session} ready={ready}>
+              <GroupDetail />
             </ProtectedRoute>
           }
         />

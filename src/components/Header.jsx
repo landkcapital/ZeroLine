@@ -38,6 +38,12 @@ export default function Header() {
             Goals
           </button>
           <button
+            className={`nav-btn ${location.pathname === "/groups" || location.pathname.startsWith("/group/") ? "active" : ""}`}
+            onClick={() => navigate("/groups")}
+          >
+            Groups
+          </button>
+          <button
             className={`nav-btn ${location.pathname === "/history" ? "active" : ""}`}
             onClick={() => navigate("/history")}
           >
@@ -76,6 +82,13 @@ export default function Header() {
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg>
           <span>Goals</span>
+        </button>
+        <button
+          className={`bottom-nav-btn ${location.pathname === "/groups" || location.pathname.startsWith("/group/") ? "active" : ""}`}
+          onClick={() => navigate("/groups")}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+          <span>Groups</span>
         </button>
         <button
           className={`bottom-nav-btn ${location.pathname === "/history" ? "active" : ""}`}

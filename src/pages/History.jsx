@@ -161,30 +161,6 @@ export default function History() {
             </div>
           </div>
 
-          {subscriptions.length > 0 && (
-            <div className="card subscription-section">
-              <div className="subscription-header">
-                <h3 className="subscription-section-title">Subscriptions</h3>
-                <span className="subscription-total">
-                  ${totalSubscriptions.toFixed(2)}
-                </span>
-              </div>
-              {subscriptions.map((sub) => (
-                <div key={sub.id} className="subscription-row">
-                  <div className="subscription-row-left">
-                    <span className="subscription-name">{sub.name}</span>
-                    <span className="period-badge">{getPeriodLabel(sub.period)}</span>
-                  </div>
-                  <div className="subscription-row-right">
-                    <span className="subscription-amount">
-                      ${sub.goal_amount.toFixed(2)}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
           <h3 className="section-title">Spending Breakdown</h3>
           <div className="history-budget-list">
             {spendingBudgets.length === 0 ? (
@@ -236,6 +212,30 @@ export default function History() {
               })
             )}
           </div>
+
+          {subscriptions.length > 0 && (
+            <div className="card subscription-section">
+              <div className="subscription-header">
+                <h3 className="subscription-section-title">Subscriptions</h3>
+                <span className="subscription-total">
+                  ${totalSubscriptions.toFixed(2)}
+                </span>
+              </div>
+              {subscriptions.map((sub) => (
+                <div key={sub.id} className="subscription-row">
+                  <div className="subscription-row-left">
+                    <span className="subscription-name">{sub.name}</span>
+                    <span className="period-badge">{getPeriodLabel(sub.period)}</span>
+                  </div>
+                  <div className="subscription-row-right">
+                    <span className="subscription-amount">
+                      ${sub.goal_amount.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
           <h3 className="section-title">All Transactions</h3>
           {transactions.length === 0 ? (

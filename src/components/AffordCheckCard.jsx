@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-export default function AffordCheckCard({ budgets, spentMap, debtMap = {}, mainGoal }) {
+export default function AffordCheckCard({ budgets, spentMap, debtMap = {}, mainGoal, groupMap = {} }) {
   const [selectedBudgetId, setSelectedBudgetId] = useState(
     budgets[0]?.id || ""
   );
@@ -60,11 +60,38 @@ export default function AffordCheckCard({ budgets, spentMap, debtMap = {}, mainG
               setCoverBudgetId("");
             }}
           >
-            {budgets.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
+            {(() => {
+              const personal = budgets.filter((b) => !b.group_id);
+              const grouped = {};
+              for (const b of budgets.filter((b) => b.group_id)) {
+                const gName = groupMap[b.group_id] || "Group";
+                if (!grouped[gName]) grouped[gName] = [];
+                grouped[gName].push(b);
+              }
+              const hasGroups = Object.keys(grouped).length > 0;
+              return (
+                <>
+                  {hasGroups ? (
+                    <optgroup label="Personal">
+                      {personal.map((b) => (
+                        <option key={b.id} value={b.id}>{b.name}</option>
+                      ))}
+                    </optgroup>
+                  ) : (
+                    personal.map((b) => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                    ))
+                  )}
+                  {Object.entries(grouped).map(([gName, gBudgets]) => (
+                    <optgroup key={gName} label={gName}>
+                      {gBudgets.map((b) => (
+                        <option key={b.id} value={b.id}>{b.name}</option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </>
+              );
+            })()}
           </select>
         </div>
         <div className="form-group">

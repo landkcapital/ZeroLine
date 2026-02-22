@@ -10,7 +10,7 @@ function toLocalDatetime(date) {
   return `${y}-${m}-${d}T${h}:${min}`;
 }
 
-export default function AddTransactionModal({ budgets, spentMap = {}, debtMap = {}, mainGoal, onClose, onAdded }) {
+export default function AddTransactionModal({ budgets, spentMap = {}, debtMap = {}, mainGoal, groupMap = {}, onClose, onAdded }) {
   const [amount, setAmount] = useState("");
   const [budgetId, setBudgetId] = useState(budgets[0]?.id || "");
   const [note, setNote] = useState("");
@@ -82,11 +82,38 @@ export default function AddTransactionModal({ budgets, spentMap = {}, debtMap = 
               onChange={(e) => setBudgetId(e.target.value)}
               required
             >
-              {budgets.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
+              {(() => {
+                const personal = budgets.filter((b) => !b.group_id);
+                const grouped = {};
+                for (const b of budgets.filter((b) => b.group_id)) {
+                  const gName = groupMap[b.group_id] || "Group";
+                  if (!grouped[gName]) grouped[gName] = [];
+                  grouped[gName].push(b);
+                }
+                const hasGroups = Object.keys(grouped).length > 0;
+                return (
+                  <>
+                    {hasGroups ? (
+                      <optgroup label="Personal">
+                        {personal.map((b) => (
+                          <option key={b.id} value={b.id}>{b.name}</option>
+                        ))}
+                      </optgroup>
+                    ) : (
+                      personal.map((b) => (
+                        <option key={b.id} value={b.id}>{b.name}</option>
+                      ))
+                    )}
+                    {Object.entries(grouped).map(([gName, gBudgets]) => (
+                      <optgroup key={gName} label={gName}>
+                        {gBudgets.map((b) => (
+                          <option key={b.id} value={b.id}>{b.name}</option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </>
+                );
+              })()}
             </select>
           </div>
           <div className="form-group">

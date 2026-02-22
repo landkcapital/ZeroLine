@@ -360,6 +360,9 @@ export default function BudgetDetail() {
             <span className={`type-badge ${isSubscription ? "subscription" : ""}`}>
               {isSubscription ? "Fixed" : "Spending"}
             </span>
+            {budget.group_id && (
+              <span className="type-badge">Group</span>
+            )}
             <span className="period-badge">
               {getPeriodLabel(budget.period)}
             </span>
