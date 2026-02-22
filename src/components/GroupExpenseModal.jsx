@@ -9,6 +9,8 @@ export default function GroupExpenseModal({ groupId, groupName, onClose, onAdded
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [receiptFile, setReceiptFile] = useState(null);
+  const [receiptPreview, setReceiptPreview] = useState(null);
 
   useEffect(() => {
     async function fetchMembers() {
@@ -37,6 +39,17 @@ export default function GroupExpenseModal({ groupId, groupName, onClose, onAdded
     fetchMembers();
   }, [groupId]);
 
+  function handleReceiptChange(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      setError("Image must be under 5MB");
+      return;
+    }
+    setReceiptFile(file);
+    setReceiptPreview(URL.createObjectURL(file));
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     if (!amount || !paidByMemberId) return;
@@ -44,23 +57,44 @@ export default function GroupExpenseModal({ groupId, groupName, onClose, onAdded
     setSaving(true);
     setError(null);
 
-    const { error: insertErr } = await supabase
-      .from("group_expenses")
-      .insert({
-        group_id: groupId,
-        paid_by_member_id: paidByMemberId,
-        amount: parseFloat(amount),
-        note: note || null,
-      });
+    try {
+      const { data: inserted, error: insertErr } = await supabase
+        .from("group_expenses")
+        .insert({
+          group_id: groupId,
+          paid_by_member_id: paidByMemberId,
+          amount: parseFloat(amount),
+          note: note || null,
+        })
+        .select()
+        .single();
 
-    if (insertErr) {
-      setError(insertErr.message);
+      if (insertErr) {
+        setError(insertErr.message);
+        setSaving(false);
+        return;
+      }
+
+      if (receiptFile && inserted) {
+        const ext = receiptFile.name.split(".").pop();
+        const path = `group-expenses/${inserted.id}/${Date.now()}.${ext}`;
+        const { error: uploadErr } = await supabase.storage
+          .from("receipt-images")
+          .upload(path, receiptFile, { upsert: true });
+        if (uploadErr) throw uploadErr;
+        const { data } = supabase.storage.from("receipt-images").getPublicUrl(path);
+        await supabase
+          .from("group_expenses")
+          .update({ receipt_url: data.publicUrl })
+          .eq("id", inserted.id);
+      }
+
+      onAdded();
+      onClose();
+    } catch (err) {
+      setError(err.message || "Failed to save expense");
       setSaving(false);
-      return;
     }
-
-    onAdded();
-    onClose();
   }
 
   const parsedAmount = parseFloat(amount) || 0;
@@ -106,6 +140,15 @@ export default function GroupExpenseModal({ groupId, groupName, onClose, onAdded
                 onChange={(e) => setNote(e.target.value)}
                 placeholder="e.g. Groceries, Dinner, Gas"
               />
+            </div>
+            <div className="form-group">
+              <label>Receipt (optional)</label>
+              <div className="receipt-upload">
+                {receiptPreview && (
+                  <img src={receiptPreview} alt="Receipt preview" className="receipt-preview" />
+                )}
+                <input type="file" accept="image/*" onChange={handleReceiptChange} />
+              </div>
             </div>
             <div className="ge-split-info">
               Split equally between {members.length} {members.length === 1 ? "person" : "people"}

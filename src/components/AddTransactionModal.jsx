@@ -18,6 +18,8 @@ export default function AddTransactionModal({ budgets, spentMap = {}, debtMap = 
   const [occurredAt, setOccurredAt] = useState(() => toLocalDatetime(new Date()));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  const [receiptFile, setReceiptFile] = useState(null);
+  const [receiptPreview, setReceiptPreview] = useState(null);
 
   // Use Allocation state
   const [allocations, setAllocations] = useState([]);
@@ -63,6 +65,29 @@ export default function AddTransactionModal({ budgets, spentMap = {}, debtMap = 
     return b ? b.name : "Unknown";
   }
 
+  function handleReceiptChange(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      setError("Image must be under 5MB");
+      return;
+    }
+    setReceiptFile(file);
+    setReceiptPreview(URL.createObjectURL(file));
+  }
+
+  async function uploadReceipt(entityId, prefix) {
+    if (!receiptFile) return null;
+    const ext = receiptFile.name.split(".").pop();
+    const path = `${prefix}/${entityId}/${Date.now()}.${ext}`;
+    const { error: uploadErr } = await supabase.storage
+      .from("receipt-images")
+      .upload(path, receiptFile, { upsert: true });
+    if (uploadErr) throw uploadErr;
+    const { data } = supabase.storage.from("receipt-images").getPublicUrl(path);
+    return data.publicUrl;
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     if (!amount || !budgetId) return;
@@ -85,17 +110,35 @@ export default function AddTransactionModal({ budgets, spentMap = {}, debtMap = 
         return;
       }
     } else {
-      const { error: insertError } = await supabase
-        .from("transactions")
-        .insert({
-          budget_id: budgetId,
-          amount: parseFloat(amount),
-          note: note || null,
-          occurred_at: new Date(occurredAt).toISOString(),
-        });
+      try {
+        const { data: inserted, error: insertError } = await supabase
+          .from("transactions")
+          .insert({
+            budget_id: budgetId,
+            amount: parseFloat(amount),
+            note: note || null,
+            occurred_at: new Date(occurredAt).toISOString(),
+          })
+          .select()
+          .single();
 
-      if (insertError) {
-        setError(insertError.message);
+        if (insertError) {
+          setError(insertError.message);
+          setSaving(false);
+          return;
+        }
+
+        if (receiptFile && inserted) {
+          const receiptUrl = await uploadReceipt(inserted.id, "transactions");
+          if (receiptUrl) {
+            await supabase
+              .from("transactions")
+              .update({ receipt_url: receiptUrl })
+              .eq("id", inserted.id);
+          }
+        }
+      } catch (err) {
+        setError(err.message || "Failed to save transaction");
         setSaving(false);
         return;
       }
@@ -195,21 +238,21 @@ export default function AddTransactionModal({ budgets, spentMap = {}, debtMap = 
         <div className="modal-mode-toggle">
           <button
             className={`modal-mode-btn ${mode === "spend" ? "active" : ""}`}
-            onClick={() => { setMode("spend"); setSelectedAlloc(null); setError(null); }}
+            onClick={() => { setMode("spend"); setSelectedAlloc(null); setError(null); setReceiptFile(null); setReceiptPreview(null); }}
             type="button"
           >
             Spend
           </button>
           <button
             className={`modal-mode-btn ${mode === "allocate" ? "active" : ""}`}
-            onClick={() => { setMode("allocate"); setSelectedAlloc(null); setError(null); }}
+            onClick={() => { setMode("allocate"); setSelectedAlloc(null); setError(null); setReceiptFile(null); setReceiptPreview(null); }}
             type="button"
           >
             Allocate
           </button>
           <button
             className={`modal-mode-btn ${mode === "use-allocation" ? "active" : ""}`}
-            onClick={() => { setMode("use-allocation"); setSelectedAlloc(null); setError(null); }}
+            onClick={() => { setMode("use-allocation"); setSelectedAlloc(null); setError(null); setReceiptFile(null); setReceiptPreview(null); }}
             type="button"
           >
             Use Allocation
@@ -334,15 +377,26 @@ export default function AddTransactionModal({ budgets, spentMap = {}, debtMap = 
               />
             </div>
             {mode === "spend" && (
-              <div className="form-group">
-                <label>Date & Time</label>
-                <input
-                  type="datetime-local"
-                  value={occurredAt}
-                  onChange={(e) => setOccurredAt(e.target.value)}
-                  required
-                />
-              </div>
+              <>
+                <div className="form-group">
+                  <label>Date & Time</label>
+                  <input
+                    type="datetime-local"
+                    value={occurredAt}
+                    onChange={(e) => setOccurredAt(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Receipt (optional)</label>
+                  <div className="receipt-upload">
+                    {receiptPreview && (
+                      <img src={receiptPreview} alt="Receipt preview" className="receipt-preview" />
+                    )}
+                    <input type="file" accept="image/*" onChange={handleReceiptChange} />
+                  </div>
+                </div>
+              </>
             )}
             {error && <p className="form-error">{error}</p>}
 

@@ -23,8 +23,10 @@ function simplifyDebts(memberBalances) {
     const amount = Math.min(creditors[ci].remaining, debtors[di].remaining);
     if (amount > 0.005) {
       settlements.push({
+        fromId: debtors[di].id,
         fromName: debtors[di].name,
         fromIsMe: debtors[di].isCurrentUser,
+        toId: creditors[ci].id,
         toName: creditors[ci].name,
         toIsMe: creditors[ci].isCurrentUser,
         amount: Math.round(amount * 100) / 100,
@@ -59,8 +61,21 @@ export default function GroupDetail() {
   const [confirmRemove, setConfirmRemove] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmDeleteExpense, setConfirmDeleteExpense] = useState(null);
+  const [confirmSettle, setConfirmSettle] = useState(null);
   const [editingName, setEditingName] = useState(false);
   const [editName, setEditName] = useState("");
+
+  // Dispute state
+  const [disputes, setDisputes] = useState([]);
+  const [disputeExpenseId, setDisputeExpenseId] = useState(null);
+  const [disputeNote, setDisputeNote] = useState("");
+  const [submittingDispute, setSubmittingDispute] = useState(false);
+
+  // Edit expense state
+  const [editingExpense, setEditingExpense] = useState(null);
+  const [editAmount, setEditAmount] = useState("");
+  const [editNote, setEditNote] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const isOwner = group && currentUserId && group.owner_user_id === currentUserId;
 
@@ -93,6 +108,18 @@ export default function GroupDetail() {
         .order("occurred_at", { ascending: false });
       if (expensesErr) throw expensesErr;
       setExpenses(expensesData || []);
+
+      // Fetch disputes for all expenses
+      const expenseIds = (expensesData || []).map((e) => e.id);
+      if (expenseIds.length > 0) {
+        const { data: disputesData } = await supabase
+          .from("group_expense_disputes")
+          .select("*")
+          .in("expense_id", expenseIds);
+        setDisputes(disputesData || []);
+      } else {
+        setDisputes([]);
+      }
 
       setError(null);
     } catch (err) {
@@ -138,6 +165,14 @@ export default function GroupDetail() {
   for (const m of members) {
     memberMap[m.id] = m.display_name || "Unknown";
   }
+
+  // Dispute lookup
+  const disputesByExpense = {};
+  for (const d of disputes) {
+    if (!disputesByExpense[d.expense_id]) disputesByExpense[d.expense_id] = [];
+    disputesByExpense[d.expense_id].push(d);
+  }
+  const currentMember = members.find((m) => m.user_id === currentUserId);
 
   async function handleRename() {
     if (!editName.trim() || editName.trim() === group.name) {
@@ -208,6 +243,75 @@ export default function GroupDetail() {
       await fetchData();
     } catch (err) {
       setError(err.message || "Failed to delete expense");
+    }
+  }
+
+  async function handleDispute(expenseId) {
+    if (!disputeNote.trim() || !currentMember) return;
+    setSubmittingDispute(true);
+    setError(null);
+    try {
+      const { error: insertErr } = await supabase
+        .from("group_expense_disputes")
+        .insert({
+          expense_id: expenseId,
+          disputed_by_member_id: currentMember.id,
+          note: disputeNote.trim(),
+        });
+      if (insertErr) throw insertErr;
+      setDisputeExpenseId(null);
+      setDisputeNote("");
+      await fetchData();
+    } catch (err) {
+      setError(err.message || "Failed to submit dispute");
+    } finally {
+      setSubmittingDispute(false);
+    }
+  }
+
+  async function handleEditExpense(expense) {
+    setSavingEdit(true);
+    setError(null);
+    try {
+      const { error: updateErr } = await supabase
+        .from("group_expenses")
+        .update({
+          amount: parseFloat(editAmount),
+          note: editNote || null,
+        })
+        .eq("id", expense.id);
+      if (updateErr) throw updateErr;
+
+      // Clear disputes on this expense after edit (resolution)
+      await supabase
+        .from("group_expense_disputes")
+        .delete()
+        .eq("expense_id", expense.id);
+
+      setEditingExpense(null);
+      await fetchData();
+    } catch (err) {
+      setError(err.message || "Failed to update expense");
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
+  async function handleSettle(settlement) {
+    try {
+      const { error: insertErr } = await supabase
+        .from("group_expenses")
+        .insert({
+          group_id: id,
+          paid_by_member_id: settlement.fromId,
+          amount: settlement.amount,
+          note: `Settlement: ${settlement.fromName} → ${settlement.toName}`,
+        });
+      if (insertErr) throw insertErr;
+      setConfirmSettle(null);
+      await fetchData();
+    } catch (err) {
+      setError(err.message || "Failed to settle up");
     }
   }
 
@@ -342,10 +446,26 @@ export default function GroupDetail() {
               <h3 className="ge-balance-title">Settle Up</h3>
               {settlements.map((s, i) => (
                 <div key={i} className="ge-settle-row">
-                  <span className="ge-settle-from">{s.fromIsMe ? "You" : s.fromName}</span>
-                  <span className="ge-settle-arrow">&rarr;</span>
-                  <span className="ge-settle-to">{s.toIsMe ? "You" : s.toName}</span>
-                  <span className="ge-settle-amount">${s.amount.toFixed(2)}</span>
+                  <div className="ge-settle-info">
+                    <span className="ge-settle-from">{s.fromIsMe ? "You" : s.fromName}</span>
+                    <span className="ge-settle-arrow">&rarr;</span>
+                    <span className="ge-settle-to">{s.toIsMe ? "You" : s.toName}</span>
+                    <span className="ge-settle-amount">${s.amount.toFixed(2)}</span>
+                  </div>
+                  {confirmSettle === i ? (
+                    <div className="ge-settle-confirm">
+                      <button className="btn small primary" onClick={() => handleSettle(s)}>
+                        Confirm
+                      </button>
+                      <button className="btn small secondary" onClick={() => setConfirmSettle(null)}>
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button className="btn small ge-settle-btn" onClick={() => setConfirmSettle(i)}>
+                      Settle
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
@@ -363,20 +483,99 @@ export default function GroupDetail() {
         <div className="transaction-list" style={{ marginBottom: "1.25rem" }}>
           {expenses.map((e) => {
             const payer = memberMap[e.paid_by_member_id] || "Removed member";
-            const payerIsMe = members.find(
-              (m) => m.id === e.paid_by_member_id
-            )?.user_id === currentUserId;
+            const payerMember = members.find((m) => m.id === e.paid_by_member_id);
+            const payerIsMe = payerMember?.user_id === currentUserId;
+            const expenseDisputes = disputesByExpense[e.id] || [];
+            const isDisputed = expenseDisputes.length > 0;
+            const alreadyDisputed = currentMember && expenseDisputes.some(
+              (d) => d.disputed_by_member_id === currentMember.id
+            );
+            const canDispute = currentMember && !payerIsMe && !alreadyDisputed;
+
+            if (editingExpense?.id === e.id) {
+              return (
+                <div key={e.id} className="card transaction-item dispute-edit-form">
+                  <div className="form-group">
+                    <label>Amount</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      value={editAmount}
+                      onChange={(ev) => setEditAmount(ev.target.value)}
+                      autoFocus
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Note</label>
+                    <input
+                      type="text"
+                      value={editNote}
+                      onChange={(ev) => setEditNote(ev.target.value)}
+                    />
+                  </div>
+                  <div className="form-actions">
+                    <button
+                      className="btn small primary"
+                      onClick={() => handleEditExpense(e)}
+                      disabled={savingEdit || !editAmount}
+                    >
+                      {savingEdit ? "Saving..." : "Save"}
+                    </button>
+                    <button
+                      className="btn small secondary"
+                      onClick={() => setEditingExpense(null)}
+                      disabled={savingEdit}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              );
+            }
+
             return (
-              <div key={e.id} className="card transaction-item">
+              <div key={e.id} className={`card transaction-item${isDisputed ? " disputed" : ""}`}>
                 <div className="transaction-info">
                   <span className="transaction-amount">${e.amount.toFixed(2)}</span>
                   <span className="transaction-budget-tag">{payerIsMe ? "You" : payer}</span>
                   <span className="transaction-note">{e.note || "No note"}</span>
+                  {isDisputed && <span className="dispute-badge">Disputed</span>}
                 </div>
+                {e.receipt_url && (
+                  <img
+                    src={e.receipt_url}
+                    alt="Receipt"
+                    className="receipt-thumbnail"
+                    onClick={() => window.open(e.receipt_url, "_blank")}
+                  />
+                )}
                 <div className="transaction-right">
                   <span className="transaction-date">
                     {new Date(e.occurred_at).toLocaleDateString()}
                   </span>
+                  {isDisputed && payerIsMe && (
+                    <button
+                      className="btn small"
+                      onClick={() => {
+                        setEditingExpense(e);
+                        setEditAmount(e.amount.toString());
+                        setEditNote(e.note || "");
+                      }}
+                    >
+                      Edit
+                    </button>
+                  )}
+                  {canDispute && (
+                    <button
+                      className="btn small dispute-btn"
+                      onClick={() => setDisputeExpenseId(
+                        disputeExpenseId === e.id ? null : e.id
+                      )}
+                    >
+                      Dispute
+                    </button>
+                  )}
                   {confirmDeleteExpense === e.id ? (
                     <div className="transaction-confirm">
                       <button className="btn small danger" onClick={() => handleDeleteExpense(e.id)}>
@@ -395,6 +594,56 @@ export default function GroupDetail() {
                     </button>
                   )}
                 </div>
+
+                {isDisputed && (
+                  <div className="dispute-details">
+                    {expenseDisputes.map((d) => (
+                      <div key={d.id} className="dispute-detail-item">
+                        <span className="dispute-detail-who">
+                          {memberMap[d.disputed_by_member_id] || "Unknown"}:
+                        </span>
+                        <span className="dispute-detail-note">{d.note}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {disputeExpenseId === e.id && (
+                  <div className="dispute-form">
+                    <div className="form-group">
+                      <label>Why are you disputing?</label>
+                      <input
+                        type="text"
+                        value={disputeNote}
+                        onChange={(ev) => setDisputeNote(ev.target.value)}
+                        placeholder="e.g. Amount seems wrong, I wasn't part of this"
+                        autoFocus
+                        onKeyDown={(ev) => {
+                          if (ev.key === "Enter" && disputeNote.trim()) {
+                            ev.preventDefault();
+                            handleDispute(e.id);
+                          }
+                        }}
+                      />
+                    </div>
+                    <div className="form-actions">
+                      <button
+                        className="btn small primary"
+                        onClick={() => handleDispute(e.id)}
+                        disabled={submittingDispute || !disputeNote.trim()}
+                      >
+                        {submittingDispute ? "Submitting..." : "Submit Dispute"}
+                      </button>
+                      <button
+                        className="btn small secondary"
+                        onClick={() => { setDisputeExpenseId(null); setDisputeNote(""); }}
+                        disabled={submittingDispute}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })}

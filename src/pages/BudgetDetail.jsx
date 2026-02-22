@@ -738,6 +738,14 @@ export default function BudgetDetail() {
                       {stripRef(t.note) || "No note"}
                     </span>
                   </div>
+                  {t.receipt_url && (
+                    <img
+                      src={t.receipt_url}
+                      alt="Receipt"
+                      className="receipt-thumbnail"
+                      onClick={() => window.open(t.receipt_url, "_blank")}
+                    />
+                  )}
                   <div className="transaction-right">
                     <span className="transaction-date">
                       {new Date(t.occurred_at).toLocaleString()}
