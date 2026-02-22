@@ -828,6 +828,7 @@ main {
   /* Summary card */
   .summary-card {
     padding: 0;
+    padding-top: 1.15rem;
     padding-bottom: 1.15rem;
   }
 
