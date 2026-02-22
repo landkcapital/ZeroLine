@@ -1,5 +1,5 @@
 -- ============================================
--- Groups feature schema
+-- Groups feature schema (idempotent — safe to re-run)
 -- Run this in your Supabase SQL Editor
 -- ============================================
 
@@ -7,23 +7,20 @@
 -- 1. CREATE ALL TABLES FIRST
 -- ============================================
 
--- Profiles table (needed for email lookup — Supabase client can't query auth.users)
 CREATE TABLE IF NOT EXISTS profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   email TEXT NOT NULL,
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- Groups table
-CREATE TABLE groups (
+CREATE TABLE IF NOT EXISTS groups (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   name TEXT NOT NULL,
   owner_user_id UUID NOT NULL REFERENCES auth.users(id),
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- Group members table
-CREATE TABLE group_members (
+CREATE TABLE IF NOT EXISTS group_members (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   group_id UUID NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES auth.users(id),
@@ -31,11 +28,10 @@ CREATE TABLE group_members (
   UNIQUE(group_id, user_id)
 );
 
--- Add group_id to budgets (nullable — null = personal)
 ALTER TABLE budgets ADD COLUMN IF NOT EXISTS group_id UUID REFERENCES groups(id) ON DELETE SET NULL;
 
 -- ============================================
--- 2. ENABLE RLS ON ALL TABLES
+-- 2. ENABLE RLS
 -- ============================================
 
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
@@ -43,8 +39,7 @@ ALTER TABLE groups ENABLE ROW LEVEL SECURITY;
 ALTER TABLE group_members ENABLE ROW LEVEL SECURITY;
 
 -- ============================================
--- 3. SECURITY DEFINER helper to avoid infinite recursion
---    (bypasses RLS when checking membership)
+-- 3. SECURITY DEFINER helper (avoids infinite recursion)
 -- ============================================
 
 CREATE OR REPLACE FUNCTION is_group_member(check_group_id UUID, check_user_id UUID)
@@ -59,11 +54,11 @@ $$ LANGUAGE sql SECURITY DEFINER;
 -- 4. PROFILES: policies, trigger, backfill
 -- ============================================
 
+DROP POLICY IF EXISTS "Authenticated users can view profiles" ON profiles;
 CREATE POLICY "Authenticated users can view profiles"
   ON profiles FOR SELECT
   USING (auth.uid() IS NOT NULL);
 
--- Auto-populate profiles on new user signup
 CREATE OR REPLACE FUNCTION handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -79,7 +74,6 @@ CREATE TRIGGER on_auth_user_created
   FOR EACH ROW
   EXECUTE FUNCTION handle_new_user();
 
--- Backfill existing users
 INSERT INTO profiles (id, email)
 SELECT id, email FROM auth.users
 ON CONFLICT DO NOTHING;
@@ -88,19 +82,23 @@ ON CONFLICT DO NOTHING;
 -- 5. GROUPS policies
 -- ============================================
 
+DROP POLICY IF EXISTS "Members can view group" ON groups;
 CREATE POLICY "Members can view group"
   ON groups FOR SELECT
   USING (is_group_member(id, auth.uid()));
 
+DROP POLICY IF EXISTS "Authenticated users can create groups" ON groups;
 CREATE POLICY "Authenticated users can create groups"
   ON groups FOR INSERT
   WITH CHECK (owner_user_id = auth.uid());
 
+DROP POLICY IF EXISTS "Owner can update group" ON groups;
 CREATE POLICY "Owner can update group"
   ON groups FOR UPDATE
   USING (owner_user_id = auth.uid())
   WITH CHECK (owner_user_id = auth.uid());
 
+DROP POLICY IF EXISTS "Owner can delete group" ON groups;
 CREATE POLICY "Owner can delete group"
   ON groups FOR DELETE
   USING (owner_user_id = auth.uid());
@@ -109,16 +107,19 @@ CREATE POLICY "Owner can delete group"
 -- 6. GROUP MEMBERS policies
 -- ============================================
 
+DROP POLICY IF EXISTS "Members can view group members" ON group_members;
 CREATE POLICY "Members can view group members"
   ON group_members FOR SELECT
   USING (is_group_member(group_id, auth.uid()));
 
+DROP POLICY IF EXISTS "Group owner can add members" ON group_members;
 CREATE POLICY "Group owner can add members"
   ON group_members FOR INSERT
   WITH CHECK (
     group_id IN (SELECT g.id FROM groups g WHERE g.owner_user_id = auth.uid())
   );
 
+DROP POLICY IF EXISTS "Owner or self can remove member" ON group_members;
 CREATE POLICY "Owner or self can remove member"
   ON group_members FOR DELETE
   USING (
@@ -128,9 +129,9 @@ CREATE POLICY "Owner or self can remove member"
 
 -- ============================================
 -- 7. BUDGETS supplementary policies for groups
--- (existing personal budget policy remains: auth.uid() = user_id)
 -- ============================================
 
+DROP POLICY IF EXISTS "Members can view group budgets" ON budgets;
 CREATE POLICY "Members can view group budgets"
   ON budgets FOR SELECT
   USING (
@@ -138,6 +139,7 @@ CREATE POLICY "Members can view group budgets"
     AND is_group_member(group_id, auth.uid())
   );
 
+DROP POLICY IF EXISTS "Members can create group budgets" ON budgets;
 CREATE POLICY "Members can create group budgets"
   ON budgets FOR INSERT
   WITH CHECK (
@@ -148,6 +150,7 @@ CREATE POLICY "Members can create group budgets"
     )
   );
 
+DROP POLICY IF EXISTS "Members can update group budgets" ON budgets;
 CREATE POLICY "Members can update group budgets"
   ON budgets FOR UPDATE
   USING (
@@ -155,6 +158,7 @@ CREATE POLICY "Members can update group budgets"
     AND is_group_member(group_id, auth.uid())
   );
 
+DROP POLICY IF EXISTS "Members can delete group budgets" ON budgets;
 CREATE POLICY "Members can delete group budgets"
   ON budgets FOR DELETE
   USING (
@@ -166,6 +170,7 @@ CREATE POLICY "Members can delete group budgets"
 -- 8. TRANSACTIONS supplementary policies for group budgets
 -- ============================================
 
+DROP POLICY IF EXISTS "Members can view group budget transactions" ON transactions;
 CREATE POLICY "Members can view group budget transactions"
   ON transactions FOR SELECT
   USING (
@@ -176,6 +181,7 @@ CREATE POLICY "Members can view group budget transactions"
     )
   );
 
+DROP POLICY IF EXISTS "Members can create group budget transactions" ON transactions;
 CREATE POLICY "Members can create group budget transactions"
   ON transactions FOR INSERT
   WITH CHECK (
@@ -186,6 +192,7 @@ CREATE POLICY "Members can create group budget transactions"
     )
   );
 
+DROP POLICY IF EXISTS "Members can delete group budget transactions" ON transactions;
 CREATE POLICY "Members can delete group budget transactions"
   ON transactions FOR DELETE
   USING (
