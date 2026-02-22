@@ -303,6 +303,17 @@ export default function GroupDetail() {
 
   async function handleDeleteExpense(expenseId) {
     try {
+      // Clean up linked budget entries (transactions & allocations) before deleting
+      const expenseShares = sharesByExpense[expenseId] || [];
+      for (const sh of expenseShares) {
+        if (sh.transaction_id) {
+          await supabase.from("transactions").delete().eq("id", sh.transaction_id);
+        }
+        if (sh.allocation_id) {
+          await supabase.from("allocations").delete().eq("id", sh.allocation_id);
+        }
+      }
+
       const { error: delErr } = await supabase
         .from("group_expenses")
         .delete()
