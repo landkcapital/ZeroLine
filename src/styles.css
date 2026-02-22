@@ -1751,6 +1751,107 @@ main {
   margin-top: 0.2rem;
 }
 
+/* ===== Account Check Card ===== */
+.account-check-card {
+  margin-top: 1rem;
+}
+
+.account-check-card.stale {
+  border-left: 3px solid #f59e0b;
+}
+
+.account-check-title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.account-check-subtitle {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  margin-bottom: 0.75rem;
+}
+
+.account-check-status {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.account-check-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+}
+
+.account-check-label {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.account-check-value {
+  font-weight: 600;
+  text-align: right;
+}
+
+.account-check-value.fresh-text {
+  color: var(--green);
+}
+
+.account-check-value.stale-text {
+  color: #f59e0b;
+}
+
+.account-check-ago {
+  font-weight: 500;
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
+.account-check-tx-amount {
+  font-weight: 800;
+  color: var(--text);
+}
+
+.account-check-screenshot {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-xs);
+  object-fit: cover;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.account-check-screenshot:hover {
+  transform: scale(1.1);
+  box-shadow: var(--shadow-md);
+}
+
+.account-check-warning {
+  font-size: 0.78rem;
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.06);
+  border: 1px solid rgba(245, 158, 11, 0.15);
+  border-radius: var(--radius-xs);
+  padding: 0.5rem 0.75rem;
+  margin-top: 0.25rem;
+}
+
+.account-check-empty {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  text-align: center;
+  padding: 0.5rem 0;
+}
+
+.account-check-form {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
 .account-password-section {
   margin-top: 1rem;
 }
