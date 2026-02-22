@@ -74,23 +74,10 @@ export default function Groups() {
     setError(null);
 
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      // Create group
+      // Use RPC function — creates group + adds creator as member atomically
       const { data: group, error: groupErr } = await supabase
-        .from("groups")
-        .insert({ name: name.trim(), owner_user_id: user.id })
-        .select()
-        .single();
+        .rpc("create_group", { group_name: name.trim() });
       if (groupErr) throw groupErr;
-
-      // Add creator as member
-      const { error: memberErr } = await supabase
-        .from("group_members")
-        .insert({ group_id: group.id, user_id: user.id });
-      if (memberErr) throw memberErr;
 
       setName("");
       setShowForm(false);
