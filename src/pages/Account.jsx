@@ -11,6 +11,14 @@ export default function Account() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [signingOut, setSigningOut] = useState(false);
+
+  // Nickname state
+  const [nickname, setNickname] = useState("");
+  const [editingNickname, setEditingNickname] = useState(false);
+  const [nicknameInput, setNicknameInput] = useState("");
+  const [savingNickname, setSavingNickname] = useState(false);
+  const [nicknameError, setNicknameError] = useState(null);
+
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -34,6 +42,7 @@ export default function Account() {
         const { data: { user: u }, error: userErr } = await supabase.auth.getUser();
         if (userErr) throw userErr;
         setUser(u);
+        setNickname(u.user_metadata?.display_name || "");
 
         const [budgetsResult, txResult] = await Promise.all([
           supabase.from("budgets").select("id", { count: "exact", head: true }),
@@ -92,6 +101,28 @@ export default function Account() {
       setPasswordError(err.message || "Failed to update password");
     } finally {
       setChangingPassword(false);
+    }
+  }
+
+  async function handleSaveNickname() {
+    const trimmed = nicknameInput.trim();
+    if (trimmed === nickname) {
+      setEditingNickname(false);
+      return;
+    }
+    setSavingNickname(true);
+    setNicknameError(null);
+    try {
+      const { error: updateErr } = await supabase.auth.updateUser({
+        data: { display_name: trimmed || null },
+      });
+      if (updateErr) throw updateErr;
+      setNickname(trimmed);
+      setEditingNickname(false);
+    } catch (err) {
+      setNicknameError(err.message || "Failed to update nickname");
+    } finally {
+      setSavingNickname(false);
     }
   }
 
@@ -200,9 +231,48 @@ export default function Account() {
     <div className="page account-page">
       <div className="card account-card">
         <div className="account-avatar">
-          {user?.email?.[0]?.toUpperCase() || "?"}
+          {(nickname || user?.email)?.[0]?.toUpperCase() || "?"}
         </div>
-        <h2 className="account-email">{user?.email}</h2>
+
+        {editingNickname ? (
+          <div className="account-nickname-edit">
+            <input
+              type="text"
+              value={nicknameInput}
+              onChange={(e) => setNicknameInput(e.target.value)}
+              placeholder="Enter a nickname"
+              autoFocus
+              maxLength={30}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") { e.preventDefault(); handleSaveNickname(); }
+                if (e.key === "Escape") setEditingNickname(false);
+              }}
+            />
+            {nicknameError && <p className="form-error">{nicknameError}</p>}
+            <div className="account-nickname-actions">
+              <button className="btn small primary" onClick={handleSaveNickname} disabled={savingNickname}>
+                {savingNickname ? "Saving..." : "Save"}
+              </button>
+              <button className="btn small secondary" onClick={() => setEditingNickname(false)} disabled={savingNickname}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="account-nickname-display" onClick={() => { setNicknameInput(nickname); setEditingNickname(true); setNicknameError(null); }}>
+            {nickname ? (
+              <>
+                <h2 className="account-name">{nickname}</h2>
+                <p className="account-email-sub">{user?.email}</p>
+              </>
+            ) : (
+              <>
+                <h2 className="account-email">{user?.email}</h2>
+                <button className="btn-link account-set-nickname">Set a nickname</button>
+              </>
+            )}
+          </div>
+        )}
 
         <div className="account-details">
           <div className="account-detail-row">

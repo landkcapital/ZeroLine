@@ -1704,6 +1704,69 @@ main {
   word-break: break-all;
 }
 
+.account-nickname-display {
+  cursor: pointer;
+  margin-bottom: 1.25rem;
+}
+
+.account-name {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-bottom: 0.15rem;
+}
+
+.account-email-sub {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  word-break: break-all;
+}
+
+.account-nickname-display .account-email {
+  margin-bottom: 0.25rem;
+}
+
+.btn-link.account-set-nickname {
+  background: none;
+  border: none;
+  color: var(--blue1);
+  font-size: 0.82rem;
+  cursor: pointer;
+  padding: 0;
+  font-weight: 500;
+}
+
+.account-nickname-edit {
+  margin-bottom: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: 280px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.account-nickname-edit input {
+  text-align: center;
+  font-size: 1rem;
+  padding: 0.5rem 0.75rem;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.account-nickname-edit input:focus {
+  border-color: var(--blue1);
+}
+
+.account-nickname-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
 .account-details {
   border-top: 1px solid var(--border);
   padding-top: 1rem;
