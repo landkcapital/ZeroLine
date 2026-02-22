@@ -2414,3 +2414,36 @@ html, body {
   margin-bottom: 1rem;
   text-align: center;
 }
+
+/* Editable group name */
+.editable-name {
+  cursor: pointer;
+  border-bottom: 1.5px dashed transparent;
+  transition: border-color 0.15s;
+}
+
+.editable-name:hover {
+  border-bottom-color: var(--blue1);
+}
+
+.group-name-edit {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.group-name-edit input {
+  flex: 1;
+  padding: 0.4rem 0.6rem;
+  font-size: 1.2rem;
+  font-weight: 700;
+  border: 1px solid var(--blue1);
+  border-radius: var(--radius-xs);
+  background: var(--bg);
+  color: var(--text);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--glow);
+  min-width: 0;
+}

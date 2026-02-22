@@ -59,6 +59,8 @@ export default function GroupDetail() {
   const [confirmRemove, setConfirmRemove] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmDeleteExpense, setConfirmDeleteExpense] = useState(null);
+  const [editingName, setEditingName] = useState(false);
+  const [editName, setEditName] = useState("");
 
   const isOwner = group && currentUserId && group.owner_user_id === currentUserId;
 
@@ -135,6 +137,24 @@ export default function GroupDetail() {
   const memberMap = {};
   for (const m of members) {
     memberMap[m.id] = m.display_name || "Unknown";
+  }
+
+  async function handleRename() {
+    if (!editName.trim() || editName.trim() === group.name) {
+      setEditingName(false);
+      return;
+    }
+    try {
+      const { error: renameErr } = await supabase
+        .from("groups")
+        .update({ name: editName.trim() })
+        .eq("id", id);
+      if (renameErr) throw renameErr;
+      setGroup({ ...group, name: editName.trim() });
+      setEditingName(false);
+    } catch (err) {
+      setError(err.message || "Failed to rename group");
+    }
   }
 
   async function handleAddMember(e) {
@@ -243,7 +263,30 @@ export default function GroupDetail() {
 
       <div className="card detail-hero">
         <div className="detail-hero-header">
-          <h2>{group.name}</h2>
+          {editingName ? (
+            <div className="group-name-edit">
+              <input
+                type="text"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleRename();
+                  if (e.key === "Escape") setEditingName(false);
+                }}
+                autoFocus
+              />
+              <button className="btn small" onClick={handleRename}>Save</button>
+              <button className="btn small secondary" onClick={() => setEditingName(false)}>Cancel</button>
+            </div>
+          ) : (
+            <h2
+              onClick={() => { if (isOwner) { setEditName(group.name); setEditingName(true); } }}
+              className={isOwner ? "editable-name" : ""}
+              title={isOwner ? "Click to rename" : ""}
+            >
+              {group.name}
+            </h2>
+          )}
           <div className="detail-hero-badges">
             {isOwner && <span className="type-badge">Owner</span>}
             <span className="period-badge">
