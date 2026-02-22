@@ -446,6 +446,7 @@ export default function Home() {
         <GroupExpenseModal
           groupId={showGroupExpense.id}
           groupName={showGroupExpense.name}
+          userBudgets={personalSpending}
           onClose={() => setShowGroupExpense(null)}
           onAdded={fetchData}
         />

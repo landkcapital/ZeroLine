@@ -2570,3 +2570,103 @@ html, body {
   flex-direction: column;
   gap: 0.5rem;
 }
+
+/* ===== Custom Split Sliders ===== */
+.split-slider-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  background: var(--bg);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+
+.split-slider-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.split-slider-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.82rem;
+}
+
+.split-slider-name {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.split-slider-value {
+  color: var(--blue1);
+  font-weight: 700;
+}
+
+.split-slider-input {
+  width: 100%;
+  accent-color: var(--blue1);
+  height: 6px;
+  cursor: pointer;
+}
+
+.split-slider-amount {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  text-align: right;
+}
+
+/* ===== Per-Expense Share Rows ===== */
+.expense-shares {
+  width: 100%;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.expense-share-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.82rem;
+  border-radius: var(--radius-xs);
+}
+
+.expense-share-row:hover {
+  background: var(--bg);
+}
+
+.expense-share-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.expense-share-name {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.expense-share-amount {
+  color: var(--text-muted);
+}
+
+/* ===== Settled Green Tick ===== */
+.settled-tick {
+  color: var(--green);
+  font-weight: 700;
+  font-size: 0.78rem;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.settled-tick::before {
+  content: "\2713";
+}

@@ -47,7 +47,9 @@ export default function GroupDetail() {
   const [group, setGroup] = useState(null);
   const [members, setMembers] = useState([]);
   const [expenses, setExpenses] = useState([]);
+  const [shares, setShares] = useState([]);
   const [currentUserId, setCurrentUserId] = useState(null);
+  const [userBudgets, setUserBudgets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showExpenseModal, setShowExpenseModal] = useState(false);
@@ -76,6 +78,9 @@ export default function GroupDetail() {
   const [editAmount, setEditAmount] = useState("");
   const [editNote, setEditNote] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
+
+  // Settle share state
+  const [settlingShare, setSettlingShare] = useState(null);
 
   const isOwner = group && currentUserId && group.owner_user_id === currentUserId;
 
@@ -109,17 +114,33 @@ export default function GroupDetail() {
       if (expensesErr) throw expensesErr;
       setExpenses(expensesData || []);
 
-      // Fetch disputes for all expenses
+      // Fetch shares for all expenses
       const expenseIds = (expensesData || []).map((e) => e.id);
       if (expenseIds.length > 0) {
+        const { data: sharesData } = await supabase
+          .from("group_expense_shares")
+          .select("*")
+          .in("expense_id", expenseIds);
+        setShares(sharesData || []);
+
         const { data: disputesData } = await supabase
           .from("group_expense_disputes")
           .select("*")
           .in("expense_id", expenseIds);
         setDisputes(disputesData || []);
       } else {
+        setShares([]);
         setDisputes([]);
       }
+
+      // Fetch user's personal spending budgets for the modal
+      const { data: budgetsData } = await supabase
+        .from("budgets")
+        .select("*")
+        .is("group_id", null)
+        .neq("type", "subscription")
+        .order("name");
+      setUserBudgets(budgetsData || []);
 
       setError(null);
     } catch (err) {
@@ -133,46 +154,94 @@ export default function GroupDetail() {
     fetchData();
   }, [fetchData]);
 
-  // Balance calculations
-  const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0);
-  const memberCount = members.length;
-  const fairShare = memberCount > 0 ? totalExpenses / memberCount : 0;
-
-  const paidByMember = {};
-  for (const e of expenses) {
-    if (e.paid_by_member_id) {
-      paidByMember[e.paid_by_member_id] = (paidByMember[e.paid_by_member_id] || 0) + e.amount;
-    }
-  }
-
-  const memberBalances = members.map((m) => {
-    const paid = paidByMember[m.id] || 0;
-    const balance = paid - fairShare;
-    return {
-      id: m.id,
-      name: m.display_name || "Unknown",
-      userId: m.user_id,
-      paid,
-      balance,
-      isCurrentUser: m.user_id === currentUserId,
-    };
-  });
-
-  const settlements = simplifyDebts(memberBalances);
-
-  // Member name lookup
+  // Build lookups
   const memberMap = {};
   for (const m of members) {
     memberMap[m.id] = m.display_name || "Unknown";
   }
 
-  // Dispute lookup
+  const memberUserIdMap = {};
+  for (const m of members) {
+    memberUserIdMap[m.id] = m.user_id;
+  }
+
+  const sharesByExpense = {};
+  for (const s of shares) {
+    if (!sharesByExpense[s.expense_id]) sharesByExpense[s.expense_id] = [];
+    sharesByExpense[s.expense_id].push(s);
+  }
+
   const disputesByExpense = {};
   for (const d of disputes) {
     if (!disputesByExpense[d.expense_id]) disputesByExpense[d.expense_id] = [];
     disputesByExpense[d.expense_id].push(d);
   }
+
   const currentMember = members.find((m) => m.user_id === currentUserId);
+
+  // Balance calculations — use shares for new expenses, fall back to old method for legacy
+  const hasAnyShares = shares.length > 0;
+
+  // Legacy balance calculation (for expenses without shares)
+  const legacyExpenses = expenses.filter((e) => !sharesByExpense[e.id] || sharesByExpense[e.id].length === 0);
+  const totalLegacyExpenses = legacyExpenses.reduce((s, e) => s + e.amount, 0);
+  const memberCount = members.length;
+  const legacyFairShare = memberCount > 0 ? totalLegacyExpenses / memberCount : 0;
+
+  const legacyPaidByMember = {};
+  for (const e of legacyExpenses) {
+    if (e.paid_by_member_id) {
+      legacyPaidByMember[e.paid_by_member_id] = (legacyPaidByMember[e.paid_by_member_id] || 0) + e.amount;
+    }
+  }
+
+  // Share-based balance: for each unsettled share, the member owes share_amount to the payer
+  const shareOwed = {};    // memberId → total they owe to others (unsettled)
+  const shareOwedTo = {};  // memberId → total owed to them (unsettled, they are the payer)
+
+  for (const e of expenses) {
+    const expShares = sharesByExpense[e.id] || [];
+    for (const sh of expShares) {
+      if (!sh.settled && sh.member_id !== e.paid_by_member_id) {
+        shareOwed[sh.member_id] = (shareOwed[sh.member_id] || 0) + sh.share_amount;
+        shareOwedTo[e.paid_by_member_id] = (shareOwedTo[e.paid_by_member_id] || 0) + sh.share_amount;
+      }
+    }
+  }
+
+  // Combined balances for display
+  const memberBalances = members.map((m) => {
+    const legacyPaid = legacyPaidByMember[m.id] || 0;
+    const legacyBalance = legacyPaid - legacyFairShare;
+    const newOwed = shareOwed[m.id] || 0;
+    const newOwedTo = shareOwedTo[m.id] || 0;
+    const balance = legacyBalance + newOwedTo - newOwed;
+    return {
+      id: m.id,
+      name: m.display_name || "Unknown",
+      userId: m.user_id,
+      paid: legacyPaid,
+      balance,
+      isCurrentUser: m.user_id === currentUserId,
+    };
+  });
+
+  // Only show legacy settlements for expenses without shares
+  const legacySettlements = legacyExpenses.length > 0 ? simplifyDebts(
+    members.map((m) => {
+      const paid = legacyPaidByMember[m.id] || 0;
+      return {
+        id: m.id,
+        name: m.display_name || "Unknown",
+        userId: m.user_id,
+        paid,
+        balance: paid - legacyFairShare,
+        isCurrentUser: m.user_id === currentUserId,
+      };
+    })
+  ) : [];
+
+  const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0);
 
   async function handleRename() {
     if (!editName.trim() || editName.trim() === group.name) {
@@ -297,7 +366,72 @@ export default function GroupDetail() {
     }
   }
 
-  async function handleSettle(settlement) {
+  async function handleSettleShare(share, expense) {
+    setSettlingShare(share.id);
+    setError(null);
+    try {
+      // If the share has an allocation (creator owes), convert to transaction
+      if (share.allocation_id && share.budget_id) {
+        // Get allocation details
+        const { data: allocData } = await supabase
+          .from("allocations")
+          .select("*")
+          .eq("id", share.allocation_id)
+          .single();
+
+        if (allocData) {
+          // Create transaction
+          const { data: tx, error: txErr } = await supabase
+            .from("transactions")
+            .insert({
+              budget_id: share.budget_id,
+              amount: share.share_amount,
+              note: allocData.note || `${group.name}: Settled`,
+              occurred_at: new Date().toISOString(),
+            })
+            .select()
+            .single();
+          if (txErr) throw txErr;
+
+          // Delete allocation
+          await supabase
+            .from("allocations")
+            .delete()
+            .eq("id", share.allocation_id);
+
+          // Update share with transaction_id and clear allocation_id
+          const { error: updateErr } = await supabase
+            .from("group_expense_shares")
+            .update({
+              settled: true,
+              settled_at: new Date().toISOString(),
+              transaction_id: tx.id,
+              allocation_id: null,
+            })
+            .eq("id", share.id);
+          if (updateErr) throw updateErr;
+        }
+      } else {
+        // Simple settle — just mark as settled
+        const { error: updateErr } = await supabase
+          .from("group_expense_shares")
+          .update({
+            settled: true,
+            settled_at: new Date().toISOString(),
+          })
+          .eq("id", share.id);
+        if (updateErr) throw updateErr;
+      }
+
+      await fetchData();
+    } catch (err) {
+      setError(err.message || "Failed to settle");
+    } finally {
+      setSettlingShare(null);
+    }
+  }
+
+  async function handleLegacySettle(settlement) {
     try {
       const { error: insertErr } = await supabase
         .from("group_expenses")
@@ -422,16 +556,11 @@ export default function GroupDetail() {
               <span>Total expenses</span>
               <span className="ge-total-amount">${totalExpenses.toFixed(2)}</span>
             </div>
-            <div className="ge-total-row" style={{ marginBottom: "0.75rem" }}>
-              <span>Per person</span>
-              <span>${fairShare.toFixed(2)}</span>
-            </div>
-            <div className="ge-balance-list">
+            <div className="ge-balance-list" style={{ marginTop: "0.75rem" }}>
               {memberBalances.map((mb) => (
                 <div key={mb.id} className="ge-balance-item">
                   <div className="ge-balance-name">
                     {mb.isCurrentUser ? "You" : mb.name}
-                    <span className="ge-balance-paid">paid ${mb.paid.toFixed(2)}</span>
                   </div>
                   <span className={`ge-balance-amount ${mb.balance >= 0 ? "positive" : "negative"}`}>
                     {mb.balance >= 0 ? "+" : ""}${mb.balance.toFixed(2)}
@@ -441,10 +570,11 @@ export default function GroupDetail() {
             </div>
           </div>
 
-          {settlements.length > 0 && (
+          {/* Legacy settle-up for old expenses without shares */}
+          {legacySettlements.length > 0 && (
             <div className="card ge-settle-card">
-              <h3 className="ge-balance-title">Settle Up</h3>
-              {settlements.map((s, i) => (
+              <h3 className="ge-balance-title">Settle Up (Legacy)</h3>
+              {legacySettlements.map((s, i) => (
                 <div key={i} className="ge-settle-row">
                   <div className="ge-settle-info">
                     <span className="ge-settle-from">{s.fromIsMe ? "You" : s.fromName}</span>
@@ -454,7 +584,7 @@ export default function GroupDetail() {
                   </div>
                   {confirmSettle === i ? (
                     <div className="ge-settle-confirm">
-                      <button className="btn small primary" onClick={() => handleSettle(s)}>
+                      <button className="btn small primary" onClick={() => handleLegacySettle(s)}>
                         Confirm
                       </button>
                       <button className="btn small secondary" onClick={() => setConfirmSettle(null)}>
@@ -490,7 +620,11 @@ export default function GroupDetail() {
             const alreadyDisputed = currentMember && expenseDisputes.some(
               (d) => d.disputed_by_member_id === currentMember.id
             );
-            const canDispute = currentMember && !payerIsMe && !alreadyDisputed;
+            // Only the payer who is a ZeroLine user can dispute
+            const canDispute = currentMember && payerIsMe && currentMember.user_id && !alreadyDisputed;
+
+            const expenseShares = sharesByExpense[e.id] || [];
+            const hasShares = expenseShares.length > 0;
 
             if (editingExpense?.id === e.id) {
               return (
@@ -644,6 +778,55 @@ export default function GroupDetail() {
                     </div>
                   </div>
                 )}
+
+                {/* Per-expense shares */}
+                {hasShares && (
+                  <div className="expense-shares">
+                    {expenseShares.map((sh) => {
+                      const shareMemberName = memberMap[sh.member_id] || "Unknown";
+                      const isShareMemberMe = memberUserIdMap[sh.member_id] === currentUserId;
+                      const isPayerForExpense = e.paid_by_member_id === sh.member_id;
+
+                      // Show settle button logic:
+                      // - If I'm the payer and this is someone else's unsettled share → "Settle" (confirm they paid me)
+                      // - If I'm the debtor (this share is mine) and it's unsettled → "Mark Paid" (I tell system I paid)
+                      const canSettle = !sh.settled && (
+                        (payerIsMe && !isShareMemberMe) ||
+                        (isShareMemberMe && !isPayerForExpense)
+                      );
+
+                      return (
+                        <div key={sh.id} className="expense-share-row">
+                          <div className="expense-share-info">
+                            <span className="expense-share-name">
+                              {isShareMemberMe ? "You" : shareMemberName}
+                            </span>
+                            <span className="expense-share-amount">
+                              ${Number(sh.share_amount).toFixed(2)}
+                            </span>
+                          </div>
+                          {sh.settled ? (
+                            <span className="settled-tick">Paid</span>
+                          ) : canSettle ? (
+                            settlingShare === sh.id ? (
+                              <span style={{ fontSize: "0.78rem", color: "var(--text-dim)" }}>Settling...</span>
+                            ) : (
+                              <button
+                                className="btn small ge-settle-btn"
+                                onClick={() => handleSettleShare(sh, e)}
+                                style={{ padding: "0.25rem 0.6rem", fontSize: "0.75rem" }}
+                              >
+                                {payerIsMe ? "Settle" : "Mark Paid"}
+                              </button>
+                            )
+                          ) : !sh.settled ? (
+                            <span style={{ fontSize: "0.75rem", color: "var(--text-dim)" }}>Pending</span>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -758,6 +941,7 @@ export default function GroupDetail() {
         <GroupExpenseModal
           groupId={id}
           groupName={group.name}
+          userBudgets={userBudgets}
           onClose={() => setShowExpenseModal(false)}
           onAdded={fetchData}
         />
