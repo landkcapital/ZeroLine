@@ -13,12 +13,15 @@ export default function Goals() {
   const [form, setForm] = useState({
     name: "",
     target_amount: "",
+    saved_amount: "",
     period: "",
     contribution_amount: "",
     collect_leftovers: false,
   });
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
+  const [addingGoalId, setAddingGoalId] = useState(null);
+  const [addAmount, setAddAmount] = useState("");
 
   const fetchGoals = useCallback(async () => {
     try {
@@ -44,6 +47,7 @@ export default function Goals() {
     setForm({
       name: "",
       target_amount: "",
+      saved_amount: "",
       period: "",
       contribution_amount: "",
       collect_leftovers: false,
@@ -58,6 +62,7 @@ export default function Goals() {
     setForm({
       name: goal.name,
       target_amount: goal.target_amount.toString(),
+      saved_amount: goal.saved_amount.toString(),
       period: goal.period || "",
       contribution_amount: goal.contribution_amount
         ? goal.contribution_amount.toString()
@@ -127,6 +132,7 @@ export default function Goals() {
         }
         const updatePayload = { ...payload };
         if (imageUrl) updatePayload.image_url = imageUrl;
+        if (form.saved_amount !== "") updatePayload.saved_amount = parseFloat(form.saved_amount) || 0;
 
         const { error: updateErr } = await supabase
           .from("goals")
@@ -212,16 +218,18 @@ export default function Goals() {
     await fetchGoals();
   }
 
-  async function handleAddSavings(goal) {
-    const input = prompt("Amount to add to savings:");
-    if (!input) return;
-    const amount = parseFloat(input);
-    if (!amount || amount <= 0) return;
-
+  async function handleAddSavings(goalId) {
+    const amount = parseFloat(addAmount);
+    if (!amount || amount === 0) return;
+    const goal = goals.find((g) => g.id === goalId);
+    setSaving(true);
     await supabase
       .from("goals")
-      .update({ saved_amount: goal.saved_amount + amount })
-      .eq("id", goal.id);
+      .update({ saved_amount: Math.max(0, goal.saved_amount + amount) })
+      .eq("id", goalId);
+    setAddingGoalId(null);
+    setAddAmount("");
+    setSaving(false);
     await fetchGoals();
   }
 
@@ -290,6 +298,20 @@ export default function Goals() {
                 required
               />
             </div>
+
+            {editingId && (
+              <div className="form-group">
+                <label>Current Saved Amount</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={form.saved_amount}
+                  onChange={(e) => setForm({ ...form, saved_amount: e.target.value })}
+                  placeholder="0.00"
+                />
+              </div>
+            )}
 
             <div className="form-group">
               <label>Auto-Contribute</label>
@@ -437,10 +459,31 @@ export default function Goals() {
                   </div>
                 )}
 
+                {addingGoalId === goal.id && (
+                  <div className="goal-add-savings-form">
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={addAmount}
+                      onChange={(e) => setAddAmount(e.target.value)}
+                      placeholder="Amount (use - to decrease)"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") { e.preventDefault(); handleAddSavings(goal.id); }
+                        if (e.key === "Escape") { setAddingGoalId(null); setAddAmount(""); }
+                      }}
+                    />
+                    <div className="goal-add-savings-actions">
+                      <button className="btn small primary" onClick={() => handleAddSavings(goal.id)} disabled={saving}>Save</button>
+                      <button className="btn small secondary" onClick={() => { setAddingGoalId(null); setAddAmount(""); }}>Cancel</button>
+                    </div>
+                  </div>
+                )}
+
                 <div className="goal-card-actions">
                   <button
                     className="btn small primary"
-                    onClick={() => handleAddSavings(goal)}
+                    onClick={() => { setAddingGoalId(goal.id); setAddAmount(""); }}
                   >
                     + Add
                   </button>

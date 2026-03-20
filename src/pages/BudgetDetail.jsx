@@ -46,6 +46,12 @@ export default function BudgetDetail() {
   const [allocations, setAllocations] = useState([]);
   const [confirmDeleteAlloc, setConfirmDeleteAlloc] = useState(null);
   const [deletingAlloc, setDeletingAlloc] = useState(false);
+  const [editingAllocId, setEditingAllocId] = useState(null);
+  const [editAllocAmount, setEditAllocAmount] = useState("");
+  const [editAllocNote, setEditAllocNote] = useState("");
+  const [editingTxId, setEditingTxId] = useState(null);
+  const [editTxAmount, setEditTxAmount] = useState("");
+  const [editTxNote, setEditTxNote] = useState("");
 
   async function handleDeleteBudget() {
     setDeleting(true);
@@ -125,6 +131,46 @@ export default function BudgetDetail() {
       setError(err.message || "Failed to delete allocation");
     } finally {
       setDeletingAlloc(false);
+    }
+  }
+
+  async function handleSaveAllocation(allocId) {
+    const amount = parseFloat(editAllocAmount);
+    if (!amount || amount <= 0) return;
+    setDeletingAlloc(true);
+    try {
+      const { error: updateErr } = await supabase
+        .from("allocations")
+        .update({ amount, note: editAllocNote.trim() || null })
+        .eq("id", allocId);
+      if (updateErr) throw updateErr;
+      setEditingAllocId(null);
+      await fetchData();
+    } catch (err) {
+      setError(err.message || "Failed to update allocation");
+    } finally {
+      setDeletingAlloc(false);
+    }
+  }
+
+  async function handleSaveTransaction(tx) {
+    const amount = parseFloat(editTxAmount);
+    if (isNaN(amount)) return;
+    setDeleting(true);
+    try {
+      const ref = extractRef(tx.note);
+      const newNote = (editTxNote.trim() || "") + (ref ? ` [ref:${ref}]` : "");
+      const { error: updateErr } = await supabase
+        .from("transactions")
+        .update({ amount, note: newNote || null })
+        .eq("id", tx.id);
+      if (updateErr) throw updateErr;
+      setEditingTxId(null);
+      await fetchData();
+    } catch (err) {
+      setError(err.message || "Failed to update transaction");
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -676,45 +722,84 @@ export default function BudgetDetail() {
               <div className="allocation-detail-list">
                 {allocations.map((alloc) => (
                   <div key={alloc.id} className="card allocation-detail-item">
-                    <div className="allocation-detail-info">
-                      <span className="allocation-detail-amount">
-                        ${alloc.amount.toFixed(2)}
-                      </span>
-                      <span className="allocation-detail-note">
-                        {alloc.note || "No note"}
-                      </span>
-                    </div>
-                    <div className="allocation-detail-right">
-                      <span className="allocation-detail-date">
-                        {new Date(alloc.created_at).toLocaleDateString()}
-                      </span>
-                      {confirmDeleteAlloc === alloc.id ? (
+                    {editingAllocId === alloc.id ? (
+                      <div className="tx-edit-form">
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          value={editAllocAmount}
+                          onChange={(e) => setEditAllocAmount(e.target.value)}
+                          placeholder="Amount"
+                          autoFocus
+                        />
+                        <input
+                          type="text"
+                          value={editAllocNote}
+                          onChange={(e) => setEditAllocNote(e.target.value)}
+                          placeholder="Note"
+                        />
                         <div className="transaction-confirm">
-                          <button
-                            className="btn small danger"
-                            onClick={() => handleDeleteAllocation(alloc.id)}
-                            disabled={deletingAlloc}
-                          >
-                            {deletingAlloc ? "..." : "Confirm"}
+                          <button className="btn small primary" onClick={() => handleSaveAllocation(alloc.id)} disabled={deletingAlloc}>
+                            {deletingAlloc ? "..." : "Save"}
                           </button>
-                          <button
-                            className="btn small secondary"
-                            onClick={() => setConfirmDeleteAlloc(null)}
-                            disabled={deletingAlloc}
-                          >
+                          <button className="btn small secondary" onClick={() => setEditingAllocId(null)} disabled={deletingAlloc}>
                             Cancel
                           </button>
                         </div>
-                      ) : (
-                        <button
-                          className="btn small danger tx-delete-btn"
-                          onClick={() => setConfirmDeleteAlloc(alloc.id)}
-                          disabled={deletingAlloc}
-                        >
-                          Remove
-                        </button>
-                      )}
-                    </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="allocation-detail-info">
+                          <span className="allocation-detail-amount">
+                            ${alloc.amount.toFixed(2)}
+                          </span>
+                          <span className="allocation-detail-note">
+                            {alloc.note || "No note"}
+                          </span>
+                        </div>
+                        <div className="allocation-detail-right">
+                          <span className="allocation-detail-date">
+                            {new Date(alloc.created_at).toLocaleDateString()}
+                          </span>
+                          {confirmDeleteAlloc === alloc.id ? (
+                            <div className="transaction-confirm">
+                              <button
+                                className="btn small danger"
+                                onClick={() => handleDeleteAllocation(alloc.id)}
+                                disabled={deletingAlloc}
+                              >
+                                {deletingAlloc ? "..." : "Confirm"}
+                              </button>
+                              <button
+                                className="btn small secondary"
+                                onClick={() => setConfirmDeleteAlloc(null)}
+                                disabled={deletingAlloc}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="tx-action-btns">
+                              <button
+                                className="btn small secondary tx-delete-btn"
+                                onClick={() => { setEditingAllocId(alloc.id); setEditAllocAmount(alloc.amount.toFixed(2)); setEditAllocNote(alloc.note || ""); setConfirmDeleteAlloc(null); }}
+                                disabled={deletingAlloc}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                className="btn small danger tx-delete-btn"
+                                onClick={() => setConfirmDeleteAlloc(alloc.id)}
+                                disabled={deletingAlloc}
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    )}
                   </div>
                 ))}
               </div>
@@ -730,53 +815,91 @@ export default function BudgetDetail() {
             <div className="transaction-list">
               {visibleTx.map((t) => (
                 <div key={t.id} className="card transaction-item">
-                  <div className="transaction-info">
-                    <span className="transaction-amount">
-                      ${t.amount.toFixed(2)}
-                    </span>
-                    <span className="transaction-note">
-                      {stripRef(t.note) || "No note"}
-                    </span>
-                  </div>
-                  {t.receipt_url && (
-                    <img
-                      src={t.receipt_url}
-                      alt="Receipt"
-                      className="receipt-thumbnail"
-                      onClick={() => window.open(t.receipt_url, "_blank")}
-                    />
-                  )}
-                  <div className="transaction-right">
-                    <span className="transaction-date">
-                      {new Date(t.occurred_at).toLocaleString()}
-                    </span>
-                    {confirmDelete === t.id ? (
+                  {editingTxId === t.id ? (
+                    <div className="tx-edit-form">
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={editTxAmount}
+                        onChange={(e) => setEditTxAmount(e.target.value)}
+                        placeholder="Amount"
+                        autoFocus
+                      />
+                      <input
+                        type="text"
+                        value={editTxNote}
+                        onChange={(e) => setEditTxNote(e.target.value)}
+                        placeholder="Note"
+                      />
                       <div className="transaction-confirm">
-                        <button
-                          className="btn small danger"
-                          onClick={() => handleDeleteTransaction(t.id)}
-                          disabled={deleting}
-                        >
-                          {deleting ? "Deleting..." : "Confirm"}
+                        <button className="btn small primary" onClick={() => handleSaveTransaction(t)} disabled={deleting}>
+                          {deleting ? "..." : "Save"}
                         </button>
-                        <button
-                          className="btn small secondary"
-                          onClick={() => setConfirmDelete(null)}
-                          disabled={deleting}
-                        >
+                        <button className="btn small secondary" onClick={() => setEditingTxId(null)} disabled={deleting}>
                           Cancel
                         </button>
                       </div>
-                    ) : (
-                      <button
-                        className="btn small danger tx-delete-btn"
-                        onClick={() => setConfirmDelete(t.id)}
-                        disabled={deleting}
-                      >
-                        Delete
-                      </button>
-                    )}
-                  </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="transaction-info">
+                        <span className="transaction-amount">
+                          ${t.amount.toFixed(2)}
+                        </span>
+                        <span className="transaction-note">
+                          {stripRef(t.note) || "No note"}
+                        </span>
+                      </div>
+                      {t.receipt_url && (
+                        <img
+                          src={t.receipt_url}
+                          alt="Receipt"
+                          className="receipt-thumbnail"
+                          onClick={() => window.open(t.receipt_url, "_blank")}
+                        />
+                      )}
+                      <div className="transaction-right">
+                        <span className="transaction-date">
+                          {new Date(t.occurred_at).toLocaleString()}
+                        </span>
+                        {confirmDelete === t.id ? (
+                          <div className="transaction-confirm">
+                            <button
+                              className="btn small danger"
+                              onClick={() => handleDeleteTransaction(t.id)}
+                              disabled={deleting}
+                            >
+                              {deleting ? "Deleting..." : "Confirm"}
+                            </button>
+                            <button
+                              className="btn small secondary"
+                              onClick={() => setConfirmDelete(null)}
+                              disabled={deleting}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="tx-action-btns">
+                            <button
+                              className="btn small secondary tx-delete-btn"
+                              onClick={() => { setEditingTxId(t.id); setEditTxAmount(t.amount.toString()); setEditTxNote(stripRef(t.note) || ""); setConfirmDelete(null); }}
+                              disabled={deleting}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              className="btn small danger tx-delete-btn"
+                              onClick={() => setConfirmDelete(t.id)}
+                              disabled={deleting}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </div>
               ))}
             </div>
