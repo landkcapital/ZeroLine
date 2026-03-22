@@ -3,6 +3,11 @@ import { supabase } from "../lib/supabase";
 import Loading from "../components/Loading";
 import { fmt } from "../lib/format";
 
+function fmtU(value, unit) {
+  if (!unit) return `$${fmt(value)}`;
+  return `${fmt(value)} ${unit}`;
+}
+
 export default function Goals() {
   const [goals, setGoals] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -13,8 +18,12 @@ export default function Goals() {
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [form, setForm] = useState({
     name: "",
+    goal_type: "savings",
     target_amount: "",
     saved_amount: "",
+    unit: "",
+    invested_amount: "",
+    current_value: "",
     period: "",
     contribution_amount: "",
     collect_leftovers: false,
@@ -22,6 +31,7 @@ export default function Goals() {
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [addingGoalId, setAddingGoalId] = useState(null);
+  const [addMode, setAddMode] = useState("add"); // "add" | "invest" | "value"
   const [addAmount, setAddAmount] = useState("");
 
   const fetchGoals = useCallback(async () => {
@@ -47,8 +57,12 @@ export default function Goals() {
   function resetForm() {
     setForm({
       name: "",
+      goal_type: "savings",
       target_amount: "",
       saved_amount: "",
+      unit: "",
+      invested_amount: "",
+      current_value: "",
       period: "",
       contribution_amount: "",
       collect_leftovers: false,
@@ -62,8 +76,12 @@ export default function Goals() {
   function startEdit(goal) {
     setForm({
       name: goal.name,
+      goal_type: goal.goal_type || "savings",
       target_amount: goal.target_amount.toString(),
       saved_amount: goal.saved_amount.toString(),
+      unit: goal.unit || "",
+      invested_amount: (goal.invested_amount || 0).toString(),
+      current_value: (goal.current_value || 0).toString(),
       period: goal.period || "",
       contribution_amount: goal.contribution_amount
         ? goal.contribution_amount.toString()
@@ -107,16 +125,24 @@ export default function Goals() {
     setError(null);
 
     try {
+      const isInvestment = form.goal_type === "investment";
       const payload = {
         name: form.name.trim(),
+        goal_type: form.goal_type,
         target_amount: parseFloat(form.target_amount),
-        period: form.period || null,
-        contribution_amount: form.contribution_amount
+        unit: form.unit.trim() || null,
+        period: isInvestment ? null : (form.period || null),
+        contribution_amount: isInvestment ? 0 : (form.contribution_amount
           ? parseFloat(form.contribution_amount)
-          : 0,
-        collect_leftovers: form.collect_leftovers,
-        renew_anchor: form.period ? new Date().toISOString().slice(0, 10) : null,
+          : 0),
+        collect_leftovers: isInvestment ? false : form.collect_leftovers,
+        renew_anchor: !isInvestment && form.period ? new Date().toISOString().slice(0, 10) : null,
       };
+
+      if (isInvestment) {
+        payload.invested_amount = form.invested_amount ? parseFloat(form.invested_amount) : 0;
+        payload.current_value = form.current_value ? parseFloat(form.current_value) : 0;
+      }
 
       // If enabling collect_leftovers, disable on all other goals
       if (payload.collect_leftovers) {
@@ -127,14 +153,15 @@ export default function Goals() {
       }
 
       if (editingId) {
-        // Update existing
         let imageUrl = undefined;
         if (imageFile) {
           imageUrl = await uploadImage(editingId);
         }
         const updatePayload = { ...payload };
         if (imageUrl) updatePayload.image_url = imageUrl;
-        if (form.saved_amount !== "") updatePayload.saved_amount = parseFloat(form.saved_amount) || 0;
+        if (!isInvestment && form.saved_amount !== "") {
+          updatePayload.saved_amount = parseFloat(form.saved_amount) || 0;
+        }
 
         const { error: updateErr } = await supabase
           .from("goals")
@@ -142,7 +169,6 @@ export default function Goals() {
           .eq("id", editingId);
         if (updateErr) throw updateErr;
       } else {
-        // Create new
         payload.sort_order = goals.length;
         const { data: inserted, error: insertErr } = await supabase
           .from("goals")
@@ -151,7 +177,6 @@ export default function Goals() {
           .single();
         if (insertErr) throw insertErr;
 
-        // Upload image if selected
         if (imageFile && inserted) {
           const imageUrl = await uploadImage(inserted.id);
           if (imageUrl) {
@@ -220,15 +245,37 @@ export default function Goals() {
     await fetchGoals();
   }
 
-  async function handleAddSavings(goalId) {
+  async function handleInlineAction(goalId) {
     const amount = parseFloat(addAmount);
-    if (!amount || amount === 0) return;
+    if (!amount && addMode !== "value") return;
+    if (addMode === "value" && (isNaN(amount) || amount < 0)) return;
+
     const goal = goals.find((g) => g.id === goalId);
     setSaving(true);
-    await supabase
-      .from("goals")
-      .update({ saved_amount: Math.max(0, goal.saved_amount + amount) })
-      .eq("id", goalId);
+
+    if (addMode === "add") {
+      // Savings: add/subtract from saved_amount
+      await supabase
+        .from("goals")
+        .update({ saved_amount: Math.max(0, goal.saved_amount + amount) })
+        .eq("id", goalId);
+    } else if (addMode === "invest") {
+      // Investment: add to invested_amount AND current_value
+      await supabase
+        .from("goals")
+        .update({
+          invested_amount: Math.max(0, (goal.invested_amount || 0) + amount),
+          current_value: Math.max(0, (goal.current_value || 0) + amount),
+        })
+        .eq("id", goalId);
+    } else if (addMode === "value") {
+      // Investment: set current_value directly
+      await supabase
+        .from("goals")
+        .update({ current_value: parseFloat(addAmount) || 0 })
+        .eq("id", goalId);
+    }
+
     setAddingGoalId(null);
     setAddAmount("");
     setSaving(false);
@@ -242,6 +289,8 @@ export default function Goals() {
     fortnightly: "Fortnightly",
     "4-weekly": "4-Weekly",
   };
+
+  const isFormInvestment = form.goal_type === "investment";
 
   return (
     <div className="page goals-page">
@@ -258,12 +307,32 @@ export default function Goals() {
           <h3>{editingId ? "Edit Goal" : "New Goal"}</h3>
           <form onSubmit={handleSubmit}>
             <div className="form-group">
+              <label>Type</label>
+              <div className="modal-mode-toggle">
+                <button
+                  type="button"
+                  className={`modal-mode-btn ${form.goal_type === "savings" ? "active" : ""}`}
+                  onClick={() => setForm({ ...form, goal_type: "savings" })}
+                >
+                  Savings
+                </button>
+                <button
+                  type="button"
+                  className={`modal-mode-btn ${form.goal_type === "investment" ? "active" : ""}`}
+                  onClick={() => setForm({ ...form, goal_type: "investment" })}
+                >
+                  Investment
+                </button>
+              </div>
+            </div>
+
+            <div className="form-group">
               <label>Goal Name</label>
               <input
                 type="text"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder="e.g. Holiday Fund"
+                placeholder={isFormInvestment ? "e.g. Gold, Bitcoin, Stocks" : "e.g. Holiday Fund"}
                 required
               />
             </div>
@@ -286,8 +355,21 @@ export default function Goals() {
               </div>
             </div>
 
+            {isFormInvestment && (
+              <div className="form-group">
+                <label>Unit (optional)</label>
+                <input
+                  type="text"
+                  value={form.unit}
+                  onChange={(e) => setForm({ ...form, unit: e.target.value })}
+                  placeholder="e.g. kg, oz, BTC, shares (leave empty for $)"
+                  maxLength={10}
+                />
+              </div>
+            )}
+
             <div className="form-group">
-              <label>Target Amount</label>
+              <label>{isFormInvestment ? "Goal Amount" : "Target Amount"}</label>
               <input
                 type="number"
                 step="0.01"
@@ -301,7 +383,34 @@ export default function Goals() {
               />
             </div>
 
-            {editingId && (
+            {isFormInvestment && editingId && (
+              <>
+                <div className="form-group">
+                  <label>Invested Amount</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={form.invested_amount}
+                    onChange={(e) => setForm({ ...form, invested_amount: e.target.value })}
+                    placeholder="0.00"
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Current Value</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={form.current_value}
+                    onChange={(e) => setForm({ ...form, current_value: e.target.value })}
+                    placeholder="0.00"
+                  />
+                </div>
+              </>
+            )}
+
+            {!isFormInvestment && editingId && (
               <div className="form-group">
                 <label>Current Saved Amount</label>
                 <input
@@ -315,47 +424,51 @@ export default function Goals() {
               </div>
             )}
 
-            <div className="form-group">
-              <label>Auto-Contribute</label>
-              <select
-                value={form.period}
-                onChange={(e) => setForm({ ...form, period: e.target.value })}
-              >
-                <option value="">None</option>
-                <option value="weekly">Weekly</option>
-                <option value="fortnightly">Fortnightly</option>
-                <option value="4-weekly">4-Weekly</option>
-              </select>
-            </div>
+            {!isFormInvestment && (
+              <>
+                <div className="form-group">
+                  <label>Auto-Contribute</label>
+                  <select
+                    value={form.period}
+                    onChange={(e) => setForm({ ...form, period: e.target.value })}
+                  >
+                    <option value="">None</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="fortnightly">Fortnightly</option>
+                    <option value="4-weekly">4-Weekly</option>
+                  </select>
+                </div>
 
-            {form.period && (
-              <div className="form-group">
-                <label>Contribution Amount</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  value={form.contribution_amount}
-                  onChange={(e) =>
-                    setForm({ ...form, contribution_amount: e.target.value })
-                  }
-                  placeholder="0.00"
-                />
-              </div>
+                {form.period && (
+                  <div className="form-group">
+                    <label>Contribution Amount</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      value={form.contribution_amount}
+                      onChange={(e) =>
+                        setForm({ ...form, contribution_amount: e.target.value })
+                      }
+                      placeholder="0.00"
+                    />
+                  </div>
+                )}
+
+                <div className="form-group">
+                  <label className="checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={form.collect_leftovers}
+                      onChange={(e) =>
+                        setForm({ ...form, collect_leftovers: e.target.checked })
+                      }
+                    />
+                    Collect budget leftovers at end of each period
+                  </label>
+                </div>
+              </>
             )}
-
-            <div className="form-group">
-              <label className="checkbox-label">
-                <input
-                  type="checkbox"
-                  checked={form.collect_leftovers}
-                  onChange={(e) =>
-                    setForm({ ...form, collect_leftovers: e.target.checked })
-                  }
-                />
-                Collect budget leftovers at end of each period
-              </label>
-            </div>
 
             <div className="goal-form-actions">
               <button
@@ -397,10 +510,17 @@ export default function Goals() {
       ) : (
         <div className="goal-list">
           {goals.map((goal, idx) => {
-            const progress =
-              goal.target_amount > 0
-                ? (goal.saved_amount / goal.target_amount) * 100
-                : 0;
+            const isInvestment = goal.goal_type === "investment";
+            const unit = goal.unit || null;
+            const investedAmt = goal.invested_amount || 0;
+            const currentVal = goal.current_value || 0;
+            const gainLoss = currentVal - investedAmt;
+            const gainPct = investedAmt > 0 ? (gainLoss / investedAmt) * 100 : 0;
+
+            const progress = isInvestment
+              ? (goal.target_amount > 0 ? (currentVal / goal.target_amount) * 100 : 0)
+              : (goal.target_amount > 0 ? (goal.saved_amount / goal.target_amount) * 100 : 0);
+
             const isMain = idx === 0;
 
             return (
@@ -409,6 +529,7 @@ export default function Goals() {
                 className={`card goal-card ${isMain ? "main" : ""}`}
               >
                 {isMain && <div className="goal-main-badge">Main Goal</div>}
+                {isInvestment && <div className="goal-type-badge investment">Investment</div>}
 
                 <div className="goal-card-top">
                   {goal.image_url && (
@@ -420,26 +541,54 @@ export default function Goals() {
                   )}
                   <div className="goal-card-info">
                     <h3 className="goal-card-name">{goal.name}</h3>
-                    <div className="goal-card-amounts">
-                      <span className="goal-saved">
-                        ${fmt(goal.saved_amount)}
-                      </span>
-                      <span className="goal-target">
-                        {" "}
-                        / ${fmt(goal.target_amount)}
-                      </span>
-                    </div>
+                    {isInvestment ? (
+                      <div className="goal-card-amounts">
+                        <span className="goal-saved">
+                          {fmtU(currentVal, unit)}
+                        </span>
+                        <span className="goal-target">
+                          {" "}/ {fmtU(goal.target_amount, unit)}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="goal-card-amounts">
+                        <span className="goal-saved">
+                          ${fmt(goal.saved_amount)}
+                        </span>
+                        <span className="goal-target">
+                          {" "}/ ${fmt(goal.target_amount)}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 <div className="progress-bar goal-progress-bar">
                   <div
-                    className="progress-fill goal-fill"
+                    className={`progress-fill goal-fill${isInvestment ? " investment" : ""}`}
                     style={{ width: `${Math.min(progress, 100)}%` }}
                   />
                 </div>
 
-                {goal.period && goal.contribution_amount > 0 && (
+                {isInvestment && (
+                  <div className="goal-investment-stats">
+                    <div className="goal-inv-stat">
+                      <span className="goal-inv-label">Invested</span>
+                      <span className="goal-inv-value">{fmtU(investedAmt, unit)}</span>
+                    </div>
+                    <div className="goal-inv-stat">
+                      <span className="goal-inv-label">Gain / Loss</span>
+                      <span className={`goal-inv-value ${gainLoss >= 0 ? "positive" : "negative"}`}>
+                        {gainLoss >= 0 ? "+" : ""}{fmtU(gainLoss, unit)}
+                        {investedAmt > 0 && (
+                          <span className="goal-inv-pct"> ({gainPct >= 0 ? "+" : ""}{gainPct.toFixed(1)}%)</span>
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {!isInvestment && goal.period && goal.contribution_amount > 0 && (
                   <div className="goal-contribution-status">
                     <span>
                       ${fmt(goal.contribution_amount)}{" "}
@@ -455,7 +604,7 @@ export default function Goals() {
                   </div>
                 )}
 
-                {goal.collect_leftovers && (
+                {!isInvestment && goal.collect_leftovers && (
                   <div className="goal-leftovers-badge">
                     Collecting budget leftovers
                   </div>
@@ -468,27 +617,52 @@ export default function Goals() {
                       step="0.01"
                       value={addAmount}
                       onChange={(e) => setAddAmount(e.target.value)}
-                      placeholder="Amount (use - to decrease)"
+                      placeholder={
+                        addMode === "value"
+                          ? "Set current value"
+                          : addMode === "invest"
+                            ? "Amount to invest (- to withdraw)"
+                            : "Amount (use - to decrease)"
+                      }
                       autoFocus
                       onKeyDown={(e) => {
-                        if (e.key === "Enter") { e.preventDefault(); handleAddSavings(goal.id); }
+                        if (e.key === "Enter") { e.preventDefault(); handleInlineAction(goal.id); }
                         if (e.key === "Escape") { setAddingGoalId(null); setAddAmount(""); }
                       }}
                     />
                     <div className="goal-add-savings-actions">
-                      <button className="btn small primary" onClick={() => handleAddSavings(goal.id)} disabled={saving}>Save</button>
+                      <button className="btn small primary" onClick={() => handleInlineAction(goal.id)} disabled={saving}>
+                        {addMode === "value" ? "Update" : "Save"}
+                      </button>
                       <button className="btn small secondary" onClick={() => { setAddingGoalId(null); setAddAmount(""); }}>Cancel</button>
                     </div>
                   </div>
                 )}
 
                 <div className="goal-card-actions">
-                  <button
-                    className="btn small primary"
-                    onClick={() => { setAddingGoalId(goal.id); setAddAmount(""); }}
-                  >
-                    + Add
-                  </button>
+                  {isInvestment ? (
+                    <>
+                      <button
+                        className="btn small primary"
+                        onClick={() => { setAddingGoalId(goal.id); setAddMode("invest"); setAddAmount(""); }}
+                      >
+                        + Invest
+                      </button>
+                      <button
+                        className="btn small"
+                        onClick={() => { setAddingGoalId(goal.id); setAddMode("value"); setAddAmount(currentVal.toString()); }}
+                      >
+                        Update Value
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      className="btn small primary"
+                      onClick={() => { setAddingGoalId(goal.id); setAddMode("add"); setAddAmount(""); }}
+                    >
+                      + Add
+                    </button>
+                  )}
                   <button
                     className="btn small secondary"
                     onClick={() => startEdit(goal)}
