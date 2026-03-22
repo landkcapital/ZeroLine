@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
+import { fmt } from "../lib/format";
 
 function toLocalDatetime(date) {
   const y = date.getFullYear();
@@ -279,7 +280,7 @@ export default function AddTransactionModal({ budgets, spentMap = {}, debtMap = 
                   onClick={() => selectAllocation(alloc)}
                 >
                   <div className="allocation-list-info">
-                    <span className="allocation-list-amount">${alloc.amount.toFixed(2)}</span>
+                    <span className="allocation-list-amount">${fmt(alloc.amount)}</span>
                     <span className="allocation-list-budget">{getBudgetName(alloc.budget_id)}</span>
                   </div>
                   <div className="allocation-list-meta">
@@ -293,7 +294,7 @@ export default function AddTransactionModal({ budgets, spentMap = {}, debtMap = 
         ) : mode === "use-allocation" && selectedAlloc ? (
           <form onSubmit={handleResolveAllocation}>
             <div className="allocation-resolve-info">
-              <span>Allocated: <strong>${selectedAlloc.amount.toFixed(2)}</strong> from <strong>{getBudgetName(selectedAlloc.budget_id)}</strong></span>
+              <span>Allocated: <strong>${fmt(selectedAlloc.amount)}</strong> from <strong>{getBudgetName(selectedAlloc.budget_id)}</strong></span>
             </div>
             <div className="form-group">
               <label>Actual Amount Spent</label>
@@ -311,8 +312,8 @@ export default function AddTransactionModal({ budgets, spentMap = {}, debtMap = 
             {parsedAmount !== selectedAlloc.amount && parsedAmount > 0 && (
               <div className={`allocation-diff ${parsedAmount > selectedAlloc.amount ? "over" : "under"}`}>
                 {parsedAmount > selectedAlloc.amount
-                  ? `$${(parsedAmount - selectedAlloc.amount).toFixed(2)} more than allocated`
-                  : `$${(selectedAlloc.amount - parsedAmount).toFixed(2)} returned to budget`}
+                  ? `$${fmt((parsedAmount - selectedAlloc.amount))} more than allocated`
+                  : `$${fmt((selectedAlloc.amount - parsedAmount))} returned to budget`}
               </div>
             )}
             <div className="form-group">
@@ -417,7 +418,7 @@ export default function AddTransactionModal({ budgets, spentMap = {}, debtMap = 
                     Will this help you save for <strong>{mainGoal.name}</strong>?
                   </div>
                   <div className="goal-reminder-progress">
-                    ${mainGoal.saved_amount.toFixed(2)} / ${mainGoal.target_amount.toFixed(2)} saved
+                    ${fmt(mainGoal.saved_amount)} / ${fmt(mainGoal.target_amount)} saved
                   </div>
                 </div>
               </div>

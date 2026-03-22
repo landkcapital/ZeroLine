@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import GroupExpenseModal from "../components/GroupExpenseModal";
 import Loading from "../components/Loading";
+import { fmt } from "../lib/format";
 
 function simplifyDebts(memberBalances) {
   const creditors = memberBalances
@@ -565,7 +566,7 @@ export default function GroupDetail() {
             <h3 className="ge-balance-title">Balances</h3>
             <div className="ge-total-row">
               <span>Total expenses</span>
-              <span className="ge-total-amount">${totalExpenses.toFixed(2)}</span>
+              <span className="ge-total-amount">${fmt(totalExpenses)}</span>
             </div>
             <div className="ge-balance-list" style={{ marginTop: "0.75rem" }}>
               {memberBalances.map((mb) => (
@@ -574,7 +575,7 @@ export default function GroupDetail() {
                     {mb.isCurrentUser ? "You" : mb.name}
                   </div>
                   <span className={`ge-balance-amount ${mb.balance >= 0 ? "positive" : "negative"}`}>
-                    {mb.balance >= 0 ? "+" : ""}${mb.balance.toFixed(2)}
+                    {mb.balance >= 0 ? "+" : ""}${fmt(mb.balance)}
                   </span>
                 </div>
               ))}
@@ -591,7 +592,7 @@ export default function GroupDetail() {
                     <span className="ge-settle-from">{s.fromIsMe ? "You" : s.fromName}</span>
                     <span className="ge-settle-arrow">&rarr;</span>
                     <span className="ge-settle-to">{s.toIsMe ? "You" : s.toName}</span>
-                    <span className="ge-settle-amount">${s.amount.toFixed(2)}</span>
+                    <span className="ge-settle-amount">${fmt(s.amount)}</span>
                   </div>
                   {confirmSettle === i ? (
                     <div className="ge-settle-confirm">
@@ -682,7 +683,7 @@ export default function GroupDetail() {
             return (
               <div key={e.id} className={`card transaction-item${isDisputed ? " disputed" : ""}`}>
                 <div className="transaction-info">
-                  <span className="transaction-amount">${e.amount.toFixed(2)}</span>
+                  <span className="transaction-amount">${fmt(e.amount)}</span>
                   <span className="transaction-budget-tag">{payerIsMe ? "You" : payer}</span>
                   <span className="transaction-note">{e.note || "No note"}</span>
                   {isDisputed && <span className="dispute-badge">Disputed</span>}
@@ -813,7 +814,7 @@ export default function GroupDetail() {
                               {isShareMemberMe ? "You" : shareMemberName}
                             </span>
                             <span className="expense-share-amount">
-                              ${Number(sh.share_amount).toFixed(2)}
+                              ${fmt(Number(sh.share_amount))}
                             </span>
                           </div>
                           {sh.settled ? (

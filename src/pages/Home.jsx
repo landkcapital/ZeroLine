@@ -9,6 +9,7 @@ import AffordCheckCard from "../components/AffordCheckCard";
 import AddTransactionModal from "../components/AddTransactionModal";
 import GroupExpenseModal from "../components/GroupExpenseModal";
 import Loading from "../components/Loading";
+import { fmt } from "../lib/format";
 
 function normalize(amount, fromPeriod, toPeriod) {
   const fromDays = PERIOD_DAYS[fromPeriod] || 14;
@@ -270,22 +271,22 @@ export default function Home() {
         <div className="summary-bar summary-bar-4">
           <div className="summary-item">
             <span className="summary-label">Subscriptions</span>
-            <span className="summary-value">${totalSubscriptions.toFixed(2)}</span>
+            <span className="summary-value">${fmt(totalSubscriptions)}</span>
           </div>
           <div className="summary-item">
             <span className="summary-label">Budget</span>
-            <span className="summary-value">${totalBudget.toFixed(2)}</span>
+            <span className="summary-value">${fmt(totalBudget)}</span>
           </div>
           <div className="summary-item">
             <span className="summary-label">Spent</span>
-            <span className="summary-value">${totalSpent.toFixed(2)}</span>
+            <span className="summary-value">${fmt(totalSpent)}</span>
           </div>
           <div className="summary-item">
             <span className="summary-label">Remaining</span>
             <span
               className={`summary-value ${totalRemaining >= 0 ? "positive" : "negative"}`}
             >
-              ${totalRemaining.toFixed(2)}
+              ${fmt(totalRemaining)}
             </span>
           </div>
         </div>
@@ -350,7 +351,7 @@ export default function Home() {
                           <span className="period-badge">{getPeriodLabel(sub.period)}</span>
                         </div>
                         <div className="subscription-row-right">
-                          <span className="subscription-amount">${sub.goal_amount.toFixed(2)}</span>
+                          <span className="subscription-amount">${fmt(sub.goal_amount)}</span>
                         </div>
                       </div>
                     ))}
@@ -365,7 +366,7 @@ export default function Home() {
               <div className="subscription-header">
                 <h3 className="subscription-section-title">Subscriptions</h3>
                 <span className="subscription-total">
-                  ${totalSubscriptions.toFixed(2)}
+                  ${fmt(totalSubscriptions)}
                   <span className="subscription-total-label"> / </span>
                   <select className="period-select" value={viewPeriod} onChange={handleViewPeriodChange}>
                     {VIEW_PERIODS.map((p) => (
@@ -389,11 +390,11 @@ export default function Home() {
                     </div>
                     <div className="subscription-row-right">
                       <span className="subscription-amount">
-                        ${sub.goal_amount.toFixed(2)}
+                        ${fmt(sub.goal_amount)}
                       </span>
                       {!isSamePeriod && (
                         <span className="subscription-fn-amount">
-                          ${norm.toFixed(2)}/{VIEW_LABELS[viewPeriod].toLowerCase().slice(0, 2)}
+                          ${fmt(norm)}/{VIEW_LABELS[viewPeriod].toLowerCase().slice(0, 2)}
                         </span>
                       )}
                     </div>

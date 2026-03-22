@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { signOut } from "../lib/auth";
 import Loading from "../components/Loading";
+import { fmt } from "../lib/format";
 
 export default function Account() {
   const navigate = useNavigate();
@@ -326,7 +327,7 @@ export default function Account() {
                   {checkpoint.last_transaction_title}
                   {checkpoint.last_transaction_amount != null && (
                     <span className="account-check-tx-amount">
-                      {" "}${Number(checkpoint.last_transaction_amount).toFixed(2)}
+                      {" "}${fmt(Number(checkpoint.last_transaction_amount))}
                     </span>
                   )}
                 </span>

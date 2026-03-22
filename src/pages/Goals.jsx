@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../lib/supabase";
 import Loading from "../components/Loading";
+import { fmt } from "../lib/format";
 
 export default function Goals() {
   const [goals, setGoals] = useState([]);
@@ -73,6 +74,7 @@ export default function Goals() {
     setImageFile(null);
     setEditingId(goal.id);
     setShowForm(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function handleImageChange(e) {
@@ -420,11 +422,11 @@ export default function Goals() {
                     <h3 className="goal-card-name">{goal.name}</h3>
                     <div className="goal-card-amounts">
                       <span className="goal-saved">
-                        ${goal.saved_amount.toFixed(2)}
+                        ${fmt(goal.saved_amount)}
                       </span>
                       <span className="goal-target">
                         {" "}
-                        / ${goal.target_amount.toFixed(2)}
+                        / ${fmt(goal.target_amount)}
                       </span>
                     </div>
                   </div>
@@ -440,7 +442,7 @@ export default function Goals() {
                 {goal.period && goal.contribution_amount > 0 && (
                   <div className="goal-contribution-status">
                     <span>
-                      ${goal.contribution_amount.toFixed(2)}{" "}
+                      ${fmt(goal.contribution_amount)}{" "}
                       {periodLabels[goal.period] || goal.period}
                       {goal.contribution_paused && " (Paused)"}
                     </span>

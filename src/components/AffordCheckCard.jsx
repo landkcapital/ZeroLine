@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { fmt } from "../lib/format";
 
 export default function AffordCheckCard({ budgets, spentMap, debtMap = {}, allocatedMap = {}, mainGoal, groupMap = {} }) {
   const [selectedBudgetId, setSelectedBudgetId] = useState(
@@ -116,14 +117,14 @@ export default function AffordCheckCard({ budgets, spentMap, debtMap = {}, alloc
           <div className="afford-row">
             <span>New remaining for {selectedBudget?.name}:</span>
             <span className={newRemaining >= 0 ? "positive" : "negative"}>
-              ${newRemaining.toFixed(2)}
+              ${fmt(newRemaining)}
             </span>
           </div>
 
           {overspend > 0 && coverOptions.length > 0 && (
             <div className="afford-cover">
               <div className="afford-cover-label">
-                Cover the ${overspend.toFixed(2)} overspend from:
+                Cover the ${fmt(overspend)} overspend from:
               </div>
               <select
                 className="afford-cover-select"
@@ -135,7 +136,7 @@ export default function AffordCheckCard({ budgets, spentMap, debtMap = {}, alloc
                   const rem = b.goal_amount - (spentMap[b.id] || 0) - (allocatedMap[b.id] || 0) + (debtMap[b.id] || 0);
                   return (
                     <option key={b.id} value={b.id}>
-                      {b.name} (${rem.toFixed(2)} remaining)
+                      {b.name} (${fmt(rem)} remaining)
                     </option>
                   );
                 })}
@@ -147,7 +148,7 @@ export default function AffordCheckCard({ budgets, spentMap, debtMap = {}, alloc
             <div className="afford-row">
               <span>New remaining for {coverBudget.name}:</span>
               <span className={coverAfter >= 0 ? "positive" : "negative"}>
-                ${coverAfter.toFixed(2)}
+                ${fmt(coverAfter)}
               </span>
             </div>
           )}
@@ -155,7 +156,7 @@ export default function AffordCheckCard({ budgets, spentMap, debtMap = {}, alloc
           <div className="afford-row">
             <span>New total across all budgets:</span>
             <span className={totalRemaining >= 0 ? "positive" : "negative"}>
-              ${totalRemaining.toFixed(2)}
+              ${fmt(totalRemaining)}
             </span>
           </div>
 
@@ -170,7 +171,7 @@ export default function AffordCheckCard({ budgets, spentMap, debtMap = {}, alloc
                   Will this help you save for <strong>{mainGoal.name}</strong>?
                 </div>
                 <div className="goal-reminder-progress">
-                  ${mainGoal.saved_amount.toFixed(2)} / ${mainGoal.target_amount.toFixed(2)} saved
+                  ${fmt(mainGoal.saved_amount)} / ${fmt(mainGoal.target_amount)} saved
                 </div>
               </div>
             </div>

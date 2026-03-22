@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
+import { fmt } from "../lib/format";
 
 export default function GroupExpenseModal({ groupId, groupName, userBudgets = [], onClose, onAdded }) {
   // Lock body scroll while modal is open
@@ -324,7 +325,7 @@ export default function GroupExpenseModal({ groupId, groupName, userBudgets = []
               <div className="ge-split-info">
                 Split equally between {members.length} {members.length === 1 ? "person" : "people"}
                 {parsedAmount > 0 && (
-                  <span> &mdash; ${(parsedAmount / members.length).toFixed(2)} each</span>
+                  <span> &mdash; ${fmt((parsedAmount / members.length))} each</span>
                 )}
               </div>
             ) : (
@@ -350,7 +351,7 @@ export default function GroupExpenseModal({ groupId, groupName, userBudgets = []
                         onChange={(e) => handleSliderChange(m.id, parseInt(e.target.value))}
                       />
                       <div className="split-slider-amount">
-                        ${dollarAmt.toFixed(2)}
+                        ${fmt(dollarAmt)}
                       </div>
                     </div>
                   );

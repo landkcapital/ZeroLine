@@ -4,6 +4,7 @@ import { supabase } from "../lib/supabase";
 import { getPeriodStart, getPeriodLabel, stepPeriod } from "../lib/period";
 import { computeCarriedDebt } from "../lib/debt";
 import Loading from "../components/Loading";
+import { fmt } from "../lib/format";
 
 function makeRef() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -445,7 +446,7 @@ export default function BudgetDetail() {
             <div className="summary-item">
               <span className="summary-label">Committed</span>
               <span className="summary-value">
-                ${budget.goal_amount.toFixed(2)}
+                ${fmt(budget.goal_amount)}
               </span>
             </div>
           </div>
@@ -455,17 +456,17 @@ export default function BudgetDetail() {
               <div className="summary-item">
                 <span className="summary-label">Goal</span>
                 <span className="summary-value">
-                  ${budget.goal_amount.toFixed(2)}
+                  ${fmt(budget.goal_amount)}
                 </span>
               </div>
               <div className="summary-item">
                 <span className="summary-label">Spent</span>
-                <span className="summary-value">${spent.toFixed(2)}</span>
+                <span className="summary-value">${fmt(spent)}</span>
               </div>
               {totalAllocated > 0 && (
                 <div className="summary-item">
                   <span className="summary-label">Allocated</span>
-                  <span className="summary-value allocated">${totalAllocated.toFixed(2)}</span>
+                  <span className="summary-value allocated">${fmt(totalAllocated)}</span>
                 </div>
               )}
               <div className="summary-item">
@@ -473,7 +474,7 @@ export default function BudgetDetail() {
                 <span
                   className={`summary-value ${remaining >= 0 ? "positive" : "negative"}`}
                 >
-                  ${remaining.toFixed(2)}
+                  ${fmt(remaining)}
                 </span>
               </div>
             </div>
@@ -494,13 +495,13 @@ export default function BudgetDetail() {
           <div className="debt-banner-content">
             <span className="debt-banner-label">Carried debt from previous periods</span>
             <span className="negative debt-banner-amount">
-              -${Math.abs(carriedDebt).toFixed(2)}
+              -${fmt(Math.abs(carriedDebt))}
             </span>
           </div>
           {confirmReset ? (
             <div className="debt-reset-confirm">
               <p>
-                Reset to full ${budget.goal_amount.toFixed(2)}? This clears all
+                Reset to full ${fmt(budget.goal_amount)}? This clears all
                 carried debt.
               </p>
               <div className="debt-reset-actions">
@@ -589,7 +590,7 @@ export default function BudgetDetail() {
                       .filter((b) => b.remaining > 0)
                       .map((b) => (
                         <option key={b.id} value={b.id}>
-                          {b.name} (${b.remaining.toFixed(2)} remaining)
+                          {b.name} (${fmt(b.remaining)} remaining)
                         </option>
                       ))
                   )}
@@ -615,7 +616,7 @@ export default function BudgetDetail() {
                           <div className="topup-preview-row">
                             <span>{budget.name} remaining now:</span>
                             <span className={targetAfter >= 0 ? "positive" : "negative"}>
-                              ${targetAfter.toFixed(2)}
+                              ${fmt(targetAfter)}
                             </span>
                           </div>
                           <div className="topup-preview-row">
@@ -632,7 +633,7 @@ export default function BudgetDetail() {
                               )}
                             </span>
                             <span className={afterBorrow >= 0 ? "positive" : "negative"}>
-                              ${afterBorrow.toFixed(2)} / ${available.toFixed(2)}
+                              ${fmt(afterBorrow)} / ${fmt(available)}
                             </span>
                           </div>
                           {showNextPeriodInfo && nextPeriodTx.length > 0 && (
@@ -643,7 +644,7 @@ export default function BudgetDetail() {
                               {nextPeriodTx.map((t, i) => (
                                 <div key={i} className="breakdown-row">
                                   <span>{stripRef(t.note)}</span>
-                                  <span>${t.amount.toFixed(2)}</span>
+                                  <span>${fmt(t.amount)}</span>
                                 </div>
                               ))}
                             </div>
@@ -660,13 +661,13 @@ export default function BudgetDetail() {
                         <div className="topup-preview-row">
                           <span>{budget.name} remaining:</span>
                           <span className={targetAfter >= 0 ? "positive" : "negative"}>
-                            ${targetAfter.toFixed(2)}
+                            ${fmt(targetAfter)}
                           </span>
                         </div>
                         <div className="topup-preview-row">
                           <span>{source.name} remaining:</span>
                           <span className={sourceAfter >= 0 ? "positive" : "negative"}>
-                            ${sourceAfter.toFixed(2)}
+                            ${fmt(sourceAfter)}
                           </span>
                         </div>
                       </>
@@ -752,7 +753,7 @@ export default function BudgetDetail() {
                       <>
                         <div className="allocation-detail-info">
                           <span className="allocation-detail-amount">
-                            ${alloc.amount.toFixed(2)}
+                            ${fmt(alloc.amount)}
                           </span>
                           <span className="allocation-detail-note">
                             {alloc.note || "No note"}
@@ -844,7 +845,7 @@ export default function BudgetDetail() {
                     <>
                       <div className="transaction-info">
                         <span className="transaction-amount">
-                          ${t.amount.toFixed(2)}
+                          ${fmt(t.amount)}
                         </span>
                         <span className="transaction-note">
                           {stripRef(t.note) || "No note"}

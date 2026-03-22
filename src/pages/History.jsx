@@ -7,6 +7,7 @@ import {
   getPeriodLabel,
 } from "../lib/period";
 import Loading from "../components/Loading";
+import { fmt } from "../lib/format";
 
 function stripRef(note) {
   if (!note) return note;
@@ -154,19 +155,19 @@ export default function History() {
               <div className="summary-item">
                 <span className="summary-label">Subscriptions</span>
                 <span className="summary-value">
-                  ${totalSubscriptions.toFixed(2)}
+                  ${fmt(totalSubscriptions)}
                 </span>
               </div>
               <div className="summary-item">
                 <span className="summary-label">Spending Budget</span>
                 <span className="summary-value">
-                  ${totalBudget.toFixed(2)}
+                  ${fmt(totalBudget)}
                 </span>
               </div>
               <div className="summary-item">
                 <span className="summary-label">Spent</span>
                 <span className="summary-value">
-                  ${totalSpent.toFixed(2)}
+                  ${fmt(totalSpent)}
                 </span>
               </div>
               <div className="summary-item">
@@ -174,7 +175,7 @@ export default function History() {
                 <span
                   className={`summary-value ${totalRemaining >= 0 ? "positive" : "negative"}`}
                 >
-                  ${totalRemaining.toFixed(2)}
+                  ${fmt(totalRemaining)}
                 </span>
               </div>
             </div>
@@ -203,20 +204,20 @@ export default function History() {
                       <div className="stat">
                         <span className="stat-label">Goal</span>
                         <span className="stat-value">
-                          ${b.goal_amount.toFixed(2)}
+                          ${fmt(b.goal_amount)}
                         </span>
                       </div>
                       <div className="stat">
                         <span className="stat-label">Spent</span>
                         <span className="stat-value">
-                          ${bSpent.toFixed(2)}
+                          ${fmt(bSpent)}
                         </span>
                       </div>
                       {bAllocated > 0 && (
                         <div className="stat">
                           <span className="stat-label">Allocated</span>
                           <span className="stat-value allocated">
-                            ${bAllocated.toFixed(2)}
+                            ${fmt(bAllocated)}
                           </span>
                         </div>
                       )}
@@ -225,7 +226,7 @@ export default function History() {
                         <span
                           className={`stat-value ${bRemaining >= 0 ? "positive" : "negative"}`}
                         >
-                          ${bRemaining.toFixed(2)}
+                          ${fmt(bRemaining)}
                         </span>
                       </div>
                     </div>
@@ -246,7 +247,7 @@ export default function History() {
               <div className="subscription-header">
                 <h3 className="subscription-section-title">Subscriptions</h3>
                 <span className="subscription-total">
-                  ${totalSubscriptions.toFixed(2)}
+                  ${fmt(totalSubscriptions)}
                 </span>
               </div>
               {subscriptions.map((sub) => (
@@ -257,7 +258,7 @@ export default function History() {
                   </div>
                   <div className="subscription-row-right">
                     <span className="subscription-amount">
-                      ${sub.goal_amount.toFixed(2)}
+                      ${fmt(sub.goal_amount)}
                     </span>
                   </div>
                 </div>
@@ -276,7 +277,7 @@ export default function History() {
                 <div key={t.id} className="card transaction-item">
                   <div className="transaction-info">
                     <span className="transaction-amount">
-                      ${t.amount.toFixed(2)}
+                      ${fmt(t.amount)}
                     </span>
                     <span className="transaction-budget-tag">
                       {budgetMap[t.budget_id]?.name || "Unknown"}

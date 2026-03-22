@@ -1,6 +1,7 @@
 import { memo } from "react";
 import { useNavigate } from "react-router-dom";
 import { getPeriodLabel } from "../lib/period";
+import { fmt } from "../lib/format";
 
 export default memo(function BudgetCard({ budget, spent, carriedDebt = 0, allocated = 0 }) {
   const navigate = useNavigate();
@@ -21,16 +22,16 @@ export default memo(function BudgetCard({ budget, spent, carriedDebt = 0, alloca
       <div className="budget-stats">
         <div className="stat">
           <span className="stat-label">Goal</span>
-          <span className="stat-value">${budget.goal_amount.toFixed(2)}</span>
+          <span className="stat-value">${fmt(budget.goal_amount)}</span>
         </div>
         <div className="stat">
           <span className="stat-label">Spent</span>
-          <span className="stat-value">${spent.toFixed(2)}</span>
+          <span className="stat-value">${fmt(spent)}</span>
         </div>
         {allocated > 0 && (
           <div className="stat">
             <span className="stat-label">Allocated</span>
-            <span className="stat-value allocated">${allocated.toFixed(2)}</span>
+            <span className="stat-value allocated">${fmt(allocated)}</span>
           </div>
         )}
         <div className="stat">
@@ -38,7 +39,7 @@ export default memo(function BudgetCard({ budget, spent, carriedDebt = 0, alloca
           <span
             className={`stat-value ${remaining >= 0 ? "positive" : "negative"}`}
           >
-            ${remaining.toFixed(2)}
+            ${fmt(remaining)}
           </span>
         </div>
       </div>

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import Loading from "../components/Loading";
+import { fmt } from "../lib/format";
 
 export default function Groups() {
   const navigate = useNavigate();
@@ -358,11 +359,11 @@ export default function Groups() {
                   </span>
                   {group.myBalance > 0.005 ? (
                     <span className="group-balance owed-to-you">
-                      Owed ${group.myBalance.toFixed(2)}
+                      Owed ${fmt(group.myBalance)}
                     </span>
                   ) : group.myBalance < -0.005 ? (
                     <span className="group-balance you-owe">
-                      You Owe ${Math.abs(group.myBalance).toFixed(2)}
+                      You Owe ${fmt(Math.abs(group.myBalance))}
                     </span>
                   ) : (
                     <span className="group-balance balanced">Balanced</span>

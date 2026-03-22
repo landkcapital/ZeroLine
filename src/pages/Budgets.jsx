@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
 import Loading from "../components/Loading";
+import { fmt } from "../lib/format";
 
 const DAYS_OF_WEEK = [
   { value: 0, label: "Sunday" },
@@ -239,7 +240,7 @@ export default function Budgets() {
           {isSub && <span className="type-badge subscription">Fixed</span>}
           {isGroup && <span className="type-badge">Group</span>}
           <span className="period-badge">{budget.period}</span>
-          <span className="budget-amount">${budget.goal_amount.toFixed(2)}</span>
+          <span className="budget-amount">${fmt(budget.goal_amount)}</span>
         </div>
         <div className="budget-list-actions">
           <button className="btn small" onClick={() => handleEdit(budget)}>Edit</button>
