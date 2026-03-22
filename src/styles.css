@@ -1439,9 +1439,7 @@ main {
 
 /* Investment goal styles */
 .goal-type-badge.investment {
-  position: absolute;
-  top: 0.75rem;
-  left: 0.75rem;
+  display: inline-block;
   font-size: 0.65rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -1451,6 +1449,7 @@ main {
   border: 1px solid rgba(16, 185, 129, 0.18);
   padding: 0.2rem 0.55rem;
   border-radius: var(--radius-xs);
+  margin-bottom: 0.5rem;
 }
 
 .goal-investment-stats {
