@@ -1525,6 +1525,26 @@ main {
   margin-bottom: 1rem;
 }
 
+.goal-form-reorder {
+  margin: 0.75rem 0;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
+.goal-form-reorder label {
+  display: block;
+  margin-bottom: 0.4rem;
+}
+
+.goal-form-reorder .goal-reorder-btns {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.goal-form-reorder .goal-reorder-btn {
+  flex: 1;
+}
+
 .goal-form-actions {
   display: flex;
   gap: 0.75rem;

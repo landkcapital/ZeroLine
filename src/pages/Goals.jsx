@@ -8,6 +8,18 @@ function fmtU(value, unit) {
   return `${fmt(value)} ${unit}`;
 }
 
+// Format number input with commas while typing
+function fmtInput(val) {
+  if (!val || val === "-" || val === ".") return val;
+  const parts = val.split(".");
+  const intPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return parts.length > 1 ? `${intPart}.${parts[1]}` : intPart;
+}
+
+function stripCommas(val) {
+  return (val || "").replace(/,/g, "");
+}
+
 export default function Goals() {
   const [goals, setGoals] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -371,12 +383,11 @@ export default function Goals() {
             <div className="form-group">
               <label>{isFormInvestment ? "Goal Amount" : "Target Amount"}</label>
               <input
-                type="number"
-                step="0.01"
-                min="0.01"
-                value={form.target_amount}
+                type="text"
+                inputMode="decimal"
+                value={fmtInput(form.target_amount)}
                 onChange={(e) =>
-                  setForm({ ...form, target_amount: e.target.value })
+                  setForm({ ...form, target_amount: stripCommas(e.target.value) })
                 }
                 placeholder="0.00"
                 required
@@ -388,22 +399,20 @@ export default function Goals() {
                 <div className="form-group">
                   <label>Invested Amount</label>
                   <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={form.invested_amount}
-                    onChange={(e) => setForm({ ...form, invested_amount: e.target.value })}
+                    type="text"
+                    inputMode="decimal"
+                    value={fmtInput(form.invested_amount)}
+                    onChange={(e) => setForm({ ...form, invested_amount: stripCommas(e.target.value) })}
                     placeholder="0.00"
                   />
                 </div>
                 <div className="form-group">
                   <label>Current Value</label>
                   <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={form.current_value}
-                    onChange={(e) => setForm({ ...form, current_value: e.target.value })}
+                    type="text"
+                    inputMode="decimal"
+                    value={fmtInput(form.current_value)}
+                    onChange={(e) => setForm({ ...form, current_value: stripCommas(e.target.value) })}
                     placeholder="0.00"
                   />
                 </div>
@@ -414,11 +423,10 @@ export default function Goals() {
               <div className="form-group">
                 <label>Current Saved Amount</label>
                 <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={form.saved_amount}
-                  onChange={(e) => setForm({ ...form, saved_amount: e.target.value })}
+                  type="text"
+                  inputMode="decimal"
+                  value={fmtInput(form.saved_amount)}
+                  onChange={(e) => setForm({ ...form, saved_amount: stripCommas(e.target.value) })}
                   placeholder="0.00"
                 />
               </div>
@@ -443,12 +451,11 @@ export default function Goals() {
                   <div className="form-group">
                     <label>Contribution Amount</label>
                     <input
-                      type="number"
-                      step="0.01"
-                      min="0.01"
-                      value={form.contribution_amount}
+                      type="text"
+                      inputMode="decimal"
+                      value={fmtInput(form.contribution_amount)}
                       onChange={(e) =>
-                        setForm({ ...form, contribution_amount: e.target.value })
+                        setForm({ ...form, contribution_amount: stripCommas(e.target.value) })
                       }
                       placeholder="0.00"
                     />
@@ -468,6 +475,30 @@ export default function Goals() {
                   </label>
                 </div>
               </>
+            )}
+
+            {editingId && (
+              <div className="goal-form-reorder">
+                <label>Reorder</label>
+                <div className="goal-reorder-btns">
+                  <button
+                    type="button"
+                    className="btn small secondary goal-reorder-btn"
+                    onClick={() => handleReorder(editingId, "up")}
+                    disabled={goals.findIndex((g) => g.id === editingId) === 0}
+                  >
+                    &#9650; Move Up
+                  </button>
+                  <button
+                    type="button"
+                    className="btn small secondary goal-reorder-btn"
+                    onClick={() => handleReorder(editingId, "down")}
+                    disabled={goals.findIndex((g) => g.id === editingId) === goals.length - 1}
+                  >
+                    &#9660; Move Down
+                  </button>
+                </div>
+              </div>
             )}
 
             <div className="goal-form-actions">
