@@ -1525,24 +1525,98 @@ main {
   margin-bottom: 1rem;
 }
 
-.goal-form-reorder {
-  margin: 0.75rem 0;
-  padding-top: 0.75rem;
-  border-top: 1px solid var(--border);
-}
-
-.goal-form-reorder label {
-  display: block;
-  margin-bottom: 0.4rem;
-}
-
-.goal-form-reorder .goal-reorder-btns {
+/* Page title row with action button */
+.page-title-row {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0;
+}
+
+.page-title-row .page-title {
+  margin-bottom: 0;
+}
+
+/* Reorder mode */
+.reorder-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.reorder-actions .btn {
+  flex: 1;
+}
+
+.reorder-list {
+  display: flex;
+  flex-direction: column;
   gap: 0.5rem;
 }
 
-.goal-form-reorder .goal-reorder-btn {
+.reorder-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  cursor: grab;
+  user-select: none;
+  transition: box-shadow 0.15s, opacity 0.15s;
+}
+
+.reorder-item.dragging {
+  opacity: 0.6;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+.reorder-item:active {
+  cursor: grabbing;
+}
+
+.reorder-handle {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 0.4rem 0.25rem;
+  flex-shrink: 0;
+  cursor: grab;
+}
+
+.reorder-handle span {
+  display: block;
+  width: 18px;
+  height: 2px;
+  background: var(--text-dim);
+  border-radius: 1px;
+}
+
+.reorder-thumb {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.reorder-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
   flex: 1;
+}
+
+.reorder-name {
+  font-weight: 700;
+  font-size: 0.95rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.reorder-amounts {
+  font-size: 0.8rem;
+  color: var(--text-dim);
 }
 
 .goal-form-actions {

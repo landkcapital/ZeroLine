@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "../lib/supabase";
 import Loading from "../components/Loading";
 import { fmt } from "../lib/format";
@@ -45,6 +45,14 @@ export default function Goals() {
   const [addingGoalId, setAddingGoalId] = useState(null);
   const [addMode, setAddMode] = useState("add"); // "add" | "invest" | "value"
   const [addAmount, setAddAmount] = useState("");
+
+  // Reorder mode state
+  const [reorderMode, setReorderMode] = useState(false);
+  const [reorderList, setReorderList] = useState([]);
+  const [dragIdx, setDragIdx] = useState(null);
+  const [overIdx, setOverIdx] = useState(null);
+  const dragRef = useRef(null);
+  const listRef = useRef(null);
 
   const fetchGoals = useCallback(async () => {
     try {
@@ -294,6 +302,78 @@ export default function Goals() {
     await fetchGoals();
   }
 
+  function enterReorderMode() {
+    setReorderList([...goals]);
+    setReorderMode(true);
+    setShowForm(false);
+  }
+
+  function cancelReorder() {
+    setReorderMode(false);
+    setReorderList([]);
+    setDragIdx(null);
+    setOverIdx(null);
+  }
+
+  async function saveReorder() {
+    setSaving(true);
+    const updates = reorderList.map((g, i) =>
+      supabase.from("goals").update({ sort_order: i }).eq("id", g.id)
+    );
+    await Promise.all(updates);
+    setSaving(false);
+    setReorderMode(false);
+    setReorderList([]);
+    setDragIdx(null);
+    setOverIdx(null);
+    await fetchGoals();
+  }
+
+  function handleDragStart(idx) {
+    setDragIdx(idx);
+    setOverIdx(idx);
+  }
+
+  function handleDragOver(idx) {
+    if (dragIdx === null || idx === overIdx) return;
+    setOverIdx(idx);
+    const newList = [...reorderList];
+    const [dragged] = newList.splice(dragIdx, 1);
+    newList.splice(idx, 0, dragged);
+    setReorderList(newList);
+    setDragIdx(idx);
+  }
+
+  function handleDragEnd() {
+    setDragIdx(null);
+    setOverIdx(null);
+  }
+
+  // Touch drag support
+  function handleTouchStart(idx, e) {
+    dragRef.current = { idx, startY: e.touches[0].clientY };
+    setDragIdx(idx);
+  }
+
+  function handleTouchMove(e) {
+    if (dragRef.current === null || !listRef.current) return;
+    e.preventDefault();
+    const touch = e.touches[0];
+    const items = listRef.current.querySelectorAll(".reorder-item");
+    for (let i = 0; i < items.length; i++) {
+      const rect = items[i].getBoundingClientRect();
+      if (touch.clientY >= rect.top && touch.clientY <= rect.bottom && i !== dragIdx) {
+        handleDragOver(i);
+        break;
+      }
+    }
+  }
+
+  function handleTouchEnd() {
+    dragRef.current = null;
+    handleDragEnd();
+  }
+
   if (loading) return <Loading />;
 
   const periodLabels = {
@@ -304,9 +384,73 @@ export default function Goals() {
 
   const isFormInvestment = form.goal_type === "investment";
 
+  if (reorderMode) {
+    return (
+      <div className="page goals-page">
+        <div className="page-title-row">
+          <h2 className="page-title">Reorder Goals</h2>
+        </div>
+        <div className="reorder-actions">
+          <button className="btn primary" onClick={saveReorder} disabled={saving}>
+            {saving ? "Saving..." : "Done"}
+          </button>
+          <button className="btn secondary" onClick={cancelReorder} disabled={saving}>
+            Cancel
+          </button>
+        </div>
+        <div
+          className="reorder-list"
+          ref={listRef}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+        >
+          {reorderList.map((goal, idx) => {
+            const isInvestment = goal.goal_type === "investment";
+            const unit = goal.unit || null;
+            const currentVal = goal.current_value || 0;
+            return (
+              <div
+                key={goal.id}
+                className={`card reorder-item${dragIdx === idx ? " dragging" : ""}`}
+                draggable
+                onDragStart={() => handleDragStart(idx)}
+                onDragOver={(e) => { e.preventDefault(); handleDragOver(idx); }}
+                onDragEnd={handleDragEnd}
+                onTouchStart={(e) => handleTouchStart(idx, e)}
+              >
+                <div className="reorder-handle" aria-label="Drag to reorder">
+                  <span></span><span></span><span></span>
+                </div>
+                {goal.image_url && (
+                  <img src={goal.image_url} alt={goal.name} className="reorder-thumb" />
+                )}
+                <div className="reorder-info">
+                  <span className="reorder-name">{goal.name}</span>
+                  <span className="reorder-amounts">
+                    {isInvestment
+                      ? `${fmtU(currentVal, unit)} / ${fmtU(goal.target_amount, unit)}`
+                      : `$${fmt(goal.saved_amount)} / $${fmt(goal.target_amount)}`
+                    }
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="page goals-page">
-      <h2 className="page-title">Goals</h2>
+      <div className="page-title-row">
+        <h2 className="page-title">Goals</h2>
+        {goals.length > 1 && !showForm && (
+          <button className="btn small secondary" onClick={enterReorderMode}>
+            Reorder
+          </button>
+        )}
+      </div>
 
       {error && (
         <p className="form-error" style={{ margin: "0.75rem 0" }}>
@@ -475,30 +619,6 @@ export default function Goals() {
                   </label>
                 </div>
               </>
-            )}
-
-            {editingId && (
-              <div className="goal-form-reorder">
-                <label>Reorder</label>
-                <div className="goal-reorder-btns">
-                  <button
-                    type="button"
-                    className="btn small secondary goal-reorder-btn"
-                    onClick={() => handleReorder(editingId, "up")}
-                    disabled={goals.findIndex((g) => g.id === editingId) === 0}
-                  >
-                    &#9650; Move Up
-                  </button>
-                  <button
-                    type="button"
-                    className="btn small secondary goal-reorder-btn"
-                    onClick={() => handleReorder(editingId, "down")}
-                    disabled={goals.findIndex((g) => g.id === editingId) === goals.length - 1}
-                  >
-                    &#9660; Move Down
-                  </button>
-                </div>
-              </div>
             )}
 
             <div className="goal-form-actions">
@@ -700,22 +820,6 @@ export default function Goals() {
                   >
                     Edit
                   </button>
-                  <div className="goal-reorder-btns">
-                    <button
-                      className="btn small secondary goal-reorder-btn"
-                      onClick={() => handleReorder(goal.id, "up")}
-                      disabled={idx === 0}
-                    >
-                      &#9650;
-                    </button>
-                    <button
-                      className="btn small secondary goal-reorder-btn"
-                      onClick={() => handleReorder(goal.id, "down")}
-                      disabled={idx === goals.length - 1}
-                    >
-                      &#9660;
-                    </button>
-                  </div>
                   {confirmDelete === goal.id ? (
                     <div className="goal-delete-confirm">
                       <button
